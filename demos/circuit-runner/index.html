@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Circuit Runner — slide-maze prototype</title>
+<style>
+  :root{
+    --bg:#070b14; --panel:#101a2e; --ink:#dff6ff; --muted:#6f87a8;
+    --cy:#27e0ff; --grn:#3ddc84; --red:#ff3b6b; --amber:#ffb031; --vio:#9b6bff;
+    --wall:#16243f; --wall-edge:#284b7a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:radial-gradient(120% 80% at 50% -10%, #122038 0%, #070b14 60%);
+    color:var(--ink); font-family:'Segoe UI',system-ui,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100%;
+    user-select:none; overflow:hidden;
+  }
+  #wrap{width:100%; max-width:440px; padding:10px 12px 18px;}
+  .top{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .logo{font-weight:800; letter-spacing:1px; font-size:17px;}
+  .logo b{color:var(--cy);}
+  .pill{margin-left:auto; display:flex; gap:8px;}
+  .stat{background:#0f1a2e; border:1px solid #1d3253; border-radius:9px; padding:5px 9px;
+    font-weight:700; font-size:13px; display:flex; gap:5px; align-items:center;}
+  .stat .k{color:var(--muted); font-weight:600; font-size:11px;}
+  #stage{position:relative; width:100%; display:flex; justify-content:center;}
+  canvas{border-radius:14px; background:#0a1120; border:1px solid #16263f;
+    box-shadow:0 10px 40px #000a, inset 0 0 60px #00112233; touch-action:none;}
+  .hint{text-align:center; color:var(--muted); font-size:12px; margin-top:10px; line-height:1.5;}
+  .hint b{color:var(--cy);}
+
+  .overlay{position:absolute; inset:0; display:none; justify-content:center; align-items:center;
+    background:#060a12dd; backdrop-filter:blur(2px); border-radius:14px; flex-direction:column; text-align:center; padding:20px;}
+  .overlay.show{display:flex;}
+  .overlay h2{margin:0 0 6px; font-size:26px;}
+  .overlay p{margin:0 0 16px; color:var(--muted); font-size:14px;}
+  .overlay .big{color:var(--cy); font-size:20px; font-weight:800;}
+  .btn{border:none; cursor:pointer; font-weight:800; padding:13px 26px; border-radius:12px;
+    font-size:15px; color:#04121a; background:linear-gradient(180deg,#5cf0ff,var(--cy));
+    box-shadow:0 5px 0 #0e7d93;} .btn:active{transform:translateY(3px); box-shadow:0 2px 0 #0e7d93;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="top">
+    <div class="logo">CIRCUIT <b>RUNNER</b></div>
+    <div class="pill">
+      <div class="stat"><span class="k">LVL</span> <span id="lvl">1</span></div>
+      <div class="stat"><span class="k">DATA</span> <span id="score">0</span></div>
+      <div class="stat"><span id="lives">♥♥♥</span></div>
+    </div>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="ov">
+      <h2 id="ovTitle">—</h2>
+      <p id="ovText">—</p>
+      <button class="btn" id="ovBtn">—</button>
+    </div>
+  </div>
+  <div class="hint">Свайп или <b>стрелки / WASD</b> — скользишь до стены.<br>Собери данные 💎, обходи сентинелов и разряды, дойди до 🟢 портала.</div>
+</div>
+
+<script>
+"use strict";
+
+// ---------------- levels ----------------
+// # wall  . data-bit  (space)=empty floor  P start  E exit  X enemy(horiz)  Y enemy(vert)  ^ spike
+const LEVELS = [
+`###########
+#P........#
+#.........#
+#..#...#..#
+#.........#
+#....E....#
+#.........#
+#..#...#..#
+#.........#
+#X.......Y#
+###########`,
+`#############
+#P..........#
+#.###.#.###.#
+#.#.......#.#
+#.#.#####.#.#
+#...#.X.#...#
+#.#.#####.#.#
+#.#.......#.#
+#.###.#.###.#
+#.........E.#
+#############`,
+`#############
+#P..#...#..E#
+#...#...#...#
+#.#.#.#.#.#.#
+#.#...Y...#.#
+#.#.#####.#.#
+#.....^.....#
+#.#.#####.#.#
+#.#...X...#.#
+#.#.#.#.#.#.#
+#...#...#...#
+#...#...#...#
+#############`
+];
+
+// ---------------- save ----------------
+const SAVE_KEY='circuitrunner.v1';
+let best = (()=>{ try{ return +JSON.parse(localStorage.getItem(SAVE_KEY))?.best||0; }catch(e){ return 0; } })();
+function saveBest(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({best})); }catch(e){} }
+
+// ---------------- tuning ----------------
+const SLIDE_SPEED = 17;   // cells / sec
+const ENEMY_SPEED = 3.2;  // cells / sec
+const HIT_DIST    = 0.55; // cells
+
+// ---------------- state ----------------
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let CELL=36, COLS=11, ROWS=11;
+let grid=[];           // grid[y][x] : 'wall'|'floor'|'spike'|'exit'
+let coins=new Set();   // "x,y"
+let exitPos={x:0,y:0};
+let player=null, enemies=[], dir=null;
+let levelIndex=0, score=0, lives=3, coinsThisLevel=0;
+let state='play';      // 'play'|'dead'|'levelclear'|'win'|'gameover'
+let last=0;
+
+function key(x,y){ return x+','+y; }
+
+function parseLevel(str){
+  const rows = str.trim().split('\n').map(r=>r.replace(/\r/g,''));
+  ROWS = rows.length; COLS = Math.max(...rows.map(r=>r.length));
+  grid=[]; coins=new Set(); enemies=[]; coinsThisLevel=0;
+  for(let y=0;y<ROWS;y++){
+    grid[y]=[];
+    for(let x=0;x<COLS;x++){
+      const c = rows[y][x] || '#';
+      let t='floor';
+      if(c==='#') t='wall';
+      else if(c==='^') t='spike';
+      else if(c==='E'){ t='exit'; exitPos={x,y}; }
+      if(c==='.'){ coins.add(key(x,y)); coinsThisLevel++; }
+      if(c==='P') player={cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false};
+      if(c==='X') enemies.push(mkEnemy(x,y,'h'));
+      if(c==='Y') enemies.push(mkEnemy(x,y,'v'));
+      grid[y][x]=t;
+    }
+  }
+  // size canvas to fit
+  CELL = Math.floor(Math.min(416/COLS, 560/ROWS));
+  cv.width = COLS*CELL; cv.height = ROWS*CELL;
+}
+function mkEnemy(x,y,axis){ return {cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false,axis,d:1}; }
+
+function isWall(x,y){ return x<0||y<0||x>=COLS||y>=ROWS||grid[y][x]==='wall'; }
+
+// ---------------- flow ----------------
+function loadLevel(i){
+  levelIndex=i; parseLevel(LEVELS[i]); dir=null; state='play';
+  hideOverlay(); syncHUD();
+}
+function startGame(){ score=0; lives=3; loadLevel(0); }
+
+function nextLevel(){
+  if(levelIndex+1 < LEVELS.length){ loadLevel(levelIndex+1); }
+  else { state='win'; if(score>best){best=score; saveBest();}
+    showOverlay('🏆 ПРОЙДЕНО', 'Все секторы зачищены!', 'Данных собрано: '+score, 'Ещё раз', startGame); }
+}
+function die(){
+  lives--; syncHUD();
+  if(lives<=0){ state='gameover'; if(score>best){best=score; saveBest();}
+    showOverlay('💀 СБОЙ', 'Сентинелы тебя достали.', 'Данных: '+score+'  ·  рекорд: '+best, 'Заново', startGame);
+  } else { state='dead';
+    setTimeout(()=>{ // respawn current level fresh
+      parseLevel(LEVELS[levelIndex]); dir=null; state='play';
+    }, 550);
+  }
+}
+
+// ---------------- input ----------------
+const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
+function setDir(d){
+  if(state!=='play' || !player || player.moving) return;
+  const [dx,dy]=DIRS[d];
+  let nx=player.cx, ny=player.cy;
+  // slide until wall
+  while(!isWall(nx+dx, ny+dy)){ nx+=dx; ny+=dy; }
+  if(nx===player.cx && ny===player.cy) return; // blocked, no move
+  player.tx=nx; player.ty=ny; player.moving=true; dir=d;
+}
+addEventListener('keydown', e=>{
+  const m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down',A:'left',D:'right',W:'up',S:'down'};
+  if(m[e.key]){ e.preventDefault(); setDir(m[e.key]); }
+});
+let ts=null;
+cv.addEventListener('touchstart',e=>{ ts=e.touches[0]; },{passive:true});
+cv.addEventListener('touchend',e=>{
+  if(!ts) return; const t=e.changedTouches[0];
+  const dx=t.clientX-ts.clientX, dy=t.clientY-ts.clientY;
+  if(Math.abs(dx)<14 && Math.abs(dy)<14) return;
+  setDir(Math.abs(dx)>Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'));
+  ts=null;
+},{passive:true});
+// pointer (mouse / trackpad) swipe for desktop
+let ps=null;
+cv.addEventListener('pointerdown',e=>{ ps={x:e.clientX,y:e.clientY}; });
+cv.addEventListener('pointerup',e=>{
+  if(!ps) return; const dx=e.clientX-ps.x, dy=e.clientY-ps.y;
+  if(Math.abs(dx)>=18||Math.abs(dy)>=18) setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+  ps=null;
+});
+
+// ---------------- update ----------------
+let lastCell='';
+function update(dt){
+  if(state!=='play') return;
+
+  // player slide
+  if(player.moving){
+    const dx=player.tx-player.fx, dy=player.ty-player.fy;
+    const dist=Math.hypot(dx,dy), step=SLIDE_SPEED*dt;
+    if(step>=dist){ player.fx=player.tx; player.fy=player.ty; player.cx=player.tx; player.cy=player.ty; player.moving=false; }
+    else { player.fx+=dx/dist*step; player.fy+=dy/dist*step; }
+    const cx=Math.round(player.fx), cy=Math.round(player.fy);
+    if(key(cx,cy)!==lastCell){ lastCell=key(cx,cy); enterCell(cx,cy); }
+  }
+
+  // enemies
+  for(const e of enemies){
+    if(!e.moving){
+      let dx=e.axis==='h'?e.d:0, dy=e.axis==='v'?e.d:0;
+      if(isWall(e.cx+dx,e.cy+dy)){ e.d*=-1; dx=-dx; dy=-dy; }
+      if(!isWall(e.cx+dx,e.cy+dy)){ e.tx=e.cx+dx; e.ty=e.cy+dy; e.moving=true; }
+    }
+    if(e.moving){
+      const dx=e.tx-e.fx, dy=e.ty-e.fy, dist=Math.hypot(dx,dy), step=ENEMY_SPEED*dt;
+      if(step>=dist){ e.fx=e.tx; e.fy=e.ty; e.cx=e.tx; e.cy=e.ty; e.moving=false; }
+      else { e.fx+=dx/dist*step; e.fy+=dy/dist*step; }
+    }
+    if(state==='play' && Math.hypot(player.fx-e.fx, player.fy-e.fy) < HIT_DIST){ die(); return; }
+  }
+}
+function enterCell(x,y){
+  if(x<0||y<0||x>=COLS||y>=ROWS) return;
+  const t=grid[y][x];
+  if(coins.has(key(x,y))){ coins.delete(key(x,y)); score++; coinsThisLevel--; syncHUD(); }
+  if(t==='spike'){ die(); return; }
+  if(t==='exit'){
+    state='levelclear';
+    const bonus = coinsThisLevel===0 ? 5 : 0; score+=bonus;
+    showOverlay('✅ СЕКТОР '+(levelIndex+1)+' ОЧИЩЕН',
+      bonus? 'Идеально — все данные собраны! +5':'К следующему сектору',
+      'Данных: '+score, 'Дальше ▶', nextLevel);
+  }
+}
+
+// ---------------- render ----------------
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // faint circuit grid
+  ctx.strokeStyle='#0e1b30'; ctx.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,cv.height); ctx.stroke(); }
+  for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(cv.width,y*CELL); ctx.stroke(); }
+
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    const t=grid[y][x], px=x*CELL, py=y*CELL;
+    if(t==='wall'){
+      ctx.fillStyle='#16243f'; rrect(px+1.5,py+1.5,CELL-3,CELL-3,6); ctx.fill();
+      ctx.strokeStyle='#2d5688'; ctx.lineWidth=1.5; ctx.stroke();
+    } else if(t==='spike'){
+      ctx.save(); ctx.shadowColor='#ff3b6b'; ctx.shadowBlur=12; ctx.fillStyle='#ff3b6b';
+      ctx.font=Math.floor(CELL*0.6)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('⚡', px+CELL/2, py+CELL/2+1); ctx.restore();
+    } else if(t==='exit'){
+      const pulse=0.6+0.4*Math.sin(performance.now()/250);
+      ctx.save(); ctx.shadowColor='#3ddc84'; ctx.shadowBlur=18*pulse;
+      ctx.fillStyle='#3ddc84'; ctx.globalAlpha=0.85;
+      ctx.beginPath(); ctx.arc(px+CELL/2,py+CELL/2,CELL*0.32,0,7); ctx.fill();
+      ctx.globalAlpha=1; ctx.fillStyle='#0a1120'; ctx.beginPath(); ctx.arc(px+CELL/2,py+CELL/2,CELL*0.16,0,7); ctx.fill();
+      ctx.restore();
+    }
+  }
+  // coins
+  ctx.save(); ctx.shadowColor='#27e0ff'; ctx.shadowBlur=8;
+  for(const c of coins){ const [x,y]=c.split(',').map(Number); const px=x*CELL+CELL/2, py=y*CELL+CELL/2, r=CELL*0.13;
+    ctx.fillStyle='#27e0ff'; ctx.beginPath();
+    ctx.moveTo(px,py-r); ctx.lineTo(px+r,py); ctx.lineTo(px,py+r); ctx.lineTo(px-r,py); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  // enemies
+  for(const e of enemies){ const px=e.fx*CELL+CELL/2, py=e.fy*CELL+CELL/2;
+    ctx.save(); ctx.shadowColor='#ff3b6b'; ctx.shadowBlur=14; ctx.fillStyle='#ff3b6b';
+    ctx.beginPath(); ctx.arc(px,py,CELL*0.30,0,7); ctx.fill();
+    ctx.fillStyle='#0a1120'; ctx.beginPath(); ctx.arc(px-CELL*0.10,py-CELL*0.04,CELL*0.06,0,7); ctx.arc(px+CELL*0.10,py-CELL*0.04,CELL*0.06,0,7); ctx.fill();
+    ctx.restore();
+  }
+  // player
+  if(player){ const px=player.fx*CELL+CELL/2, py=player.fy*CELL+CELL/2;
+    ctx.save(); ctx.shadowColor='#5cf0ff'; ctx.shadowBlur=16; ctx.fillStyle='#5cf0ff';
+    rrect(px-CELL*0.28,py-CELL*0.28,CELL*0.56,CELL*0.56,5); ctx.fill();
+    ctx.shadowBlur=0; ctx.fillStyle='#04121a';
+    rrect(px-CELL*0.12,py-CELL*0.12,CELL*0.24,CELL*0.24,3); ctx.fill();
+    ctx.restore();
+  }
+}
+function rrect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// ---------------- hud / overlay ----------------
+function syncHUD(){
+  document.getElementById('lvl').textContent=levelIndex+1;
+  document.getElementById('score').textContent=score;
+  document.getElementById('lives').textContent='♥'.repeat(Math.max(0,lives))+'·'.repeat(Math.max(0,3-lives));
+}
+let ovCb=null;
+function showOverlay(title,text,big,btn,cb){
+  document.getElementById('ovTitle').textContent=title;
+  document.getElementById('ovText').textContent=text;
+  document.getElementById('ovBtn').textContent=btn;
+  const p=document.getElementById('ovText'); p.innerHTML=text+'<br><span class="big">'+big+'</span>';
+  ovCb=cb; document.getElementById('ov').classList.add('show');
+}
+function hideOverlay(){ document.getElementById('ov').classList.remove('show'); }
+document.getElementById('ovBtn').onclick=()=>{ const cb=ovCb; ovCb=null; if(cb) cb(); };
+
+// ---------------- loop ----------------
+function frame(t){
+  const dt=Math.min(0.05,(t-last)/1000||0); last=t;
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+
+// debug hooks for QA
+window.dbg={ get state(){return state;}, get score(){return score;}, get lives(){return lives;},
+  get level(){return levelIndex;}, get coinsLeft(){return coinsThisLevel;}, get best(){return best;},
+  press:setDir, teleport:(x,y)=>{ player.cx=x;player.cy=y;player.fx=x;player.fy=y;player.tx=x;player.ty=y;player.moving=false; lastCell=''; },
+  pos:()=>({x:player.cx,y:player.cy}), exit:()=>({...exitPos}) };
+
+startGame();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
