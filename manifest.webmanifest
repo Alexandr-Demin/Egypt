@@ -1,0 +1,12 @@
+{
+  "name": "EGYPT",
+  "short_name": "EGYPT",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0e0a06",
+  "theme_color": "#0e0a06",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "assets/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}

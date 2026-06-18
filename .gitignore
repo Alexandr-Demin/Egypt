@@ -1,0 +1,23 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+.claude/
+
+# itch.io build artifacts
+egypt-itch-*.zip
+egypt-itch.zip
+
+# Capacitor / Android wrapper
+www/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+dist/
