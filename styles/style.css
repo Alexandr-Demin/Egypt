@@ -21,9 +21,17 @@ body{
 .topbar .brand{ font-weight:900; letter-spacing:.28em; color:var(--gold); font-size:16px; }
 .topbar .hud{ margin-left:auto; display:flex; gap:8px; font-size:13px; color:var(--muted); }
 
-.stage{ flex:1; display:flex; justify-content:center; align-items:center; padding:14px; }
-#game-canvas{ border-radius:14px; background:#0a0603; border:1px solid var(--line);
-  box-shadow:0 10px 40px #000a; touch-action:none; }
+.stage{ flex:1; display:flex; justify-content:center; align-items:center; padding:10px; }
+/* Pixel-perfect upscale: canvas is rendered at its small virtual resolution
+   (208x288) and stretched here with nearest-neighbour so pixels stay crisp. */
+#game-canvas{
+  width:auto; height:100%; max-height:calc(100vh - 90px);
+  max-width:100%;
+  image-rendering:pixelated; image-rendering:crisp-edges;
+  border-radius:12px; background:#0a0603; border:2px solid var(--line);
+  box-shadow:0 12px 48px #000c, 0 0 0 1px #000 inset;
+  touch-action:none;
+}
 
 /* ===== toasts / alerts ===== */
 .toasts{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
