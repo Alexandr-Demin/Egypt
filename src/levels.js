@@ -3,45 +3,44 @@
 //          X mummy (horizontal patrol)   ^ spikes
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
 
-// Open rooms of varying size & offset (left→right→left) joined by short
-// corridors and a tomb chamber — the layout reads as distinct rooms. Coins are
-// spawned by the game ONLY on tiles a slide can pass through (computeSwept), so
-// the placed count always equals the collectible count even though the rooms
-// stay open. A few pillars per room add stops so most of each room is reachable.
+// Open rooms of varying size & offset joined by short corridors and a tomb
+// chamber. Coins are spawned by the game ONLY on tiles a slide can pass through
+// (computeSwept), so the placed count always equals the collectible count.
+// ROWS is authored top-down for readability, then flipped at export so play runs
+// BOTTOM-TO-TOP: the hero starts at the bottom and climbs up to the sarcophagus.
+const ROWS = [
+  '################',
+  '#P.....#########',
+  '#......#########',
+  '#......#########',
+  '#......#########',
+  '######.#########',
+  '######.#########',
+  '####........####',
+  '####.X..#...####',
+  '####.....#..####',
+  '####........####',
+  '###########.####',
+  '###########.####',
+  '#######........#',
+  '#######..#.....#',
+  '#######...#....#',
+  '#######...X....#',
+  '#######.########',
+  '#######.########',
+  '##........######',
+  '##..#.....######',
+  '##....#...######',
+  '##........######',
+  '##.#############',
+  '##.#############',
+  '#.......########',
+  '#...#...########',
+  '#.......########',
+  '#......E########',
+  '################',
+];
+
 export const LEVELS = [
-  {
-    name: 'TOMB OF ANUBIS',
-    map: [
-      '################',
-      '#P.....#########',
-      '#......#########',
-      '#......#########',
-      '#......#########',
-      '######.#########',
-      '######.#########',
-      '####........####',
-      '####.X..#...####',
-      '####.....#..####',
-      '####........####',
-      '###########.####',
-      '###########.####',
-      '#######........#',
-      '#######..#.....#',
-      '#######...#....#',
-      '#######...X....#',
-      '#######.########',
-      '#######.########',
-      '##........######',
-      '##..#.....######',
-      '##....#...######',
-      '##........######',
-      '##.#############',
-      '##.#############',
-      '#.......########',
-      '#...#...########',
-      '#.......########',
-      '#......E########',
-      '################',
-    ],
-  },
+  { name: 'TOMB OF ANUBIS', map: ROWS.slice().reverse() },
 ];

@@ -1,6 +1,6 @@
-import { CONFIG } from './config.js?v=20260619o';
-import { getState, load, save } from './state.js?v=20260619o';
-import { startGame } from './game.js?v=20260619o';
+import { CONFIG } from './config.js?v=20260619p';
+import { getState, load, save } from './state.js?v=20260619p';
+import { startGame } from './game.js?v=20260619p';
 
 // =========== EGYPT — Boot ===========
 // Load state, hand the canvas to the game core, then fade the preloader out.
