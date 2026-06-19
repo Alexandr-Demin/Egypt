@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619n';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619n';
-import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619n';
-import { getState, patch } from './state.js?v=20260619n';
-import * as sound from './sound.js?v=20260619n';
+import { LEVELS } from './levels.js?v=20260619o';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619o';
+import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619o';
+import { getState, patch } from './state.js?v=20260619o';
+import * as sound from './sound.js?v=20260619o';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -115,21 +115,16 @@ function computeSwept(){
 }
 
 // ---------------- camera (follows the player across a large map) ----------------
-function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
-// Returns the desired screen-space origin of tile (0,0). On axes where the map
-// is smaller than the view it stays centered; otherwise it tracks the player
-// and clamps so the view never spills past the map edges.
+// Screen-space origin of tile (0,0) that keeps the player dead-centre: the world
+// (and the black void past the map edges) scrolls behind it, like the original.
 function camTarget(){
-  const mapW=G.COLS*TILE, mapH=G.ROWS*TILE, viewH=VH-HUD_H, p=G.player;
-  const pxw = p? p.fx*TILE+TILE/2 : mapW/2;
-  const pyw = p? p.fy*TILE+TILE/2 : mapH/2;
-  let x,y;
-  if(mapW<=VW) x=(VW-mapW)/2; else x=-clamp(pxw-VW/2, 0, mapW-VW);
-  if(mapH<=viewH) y=HUD_H+(viewH-mapH)/2; else y=HUD_H-clamp(pyw-viewH/2, 0, mapH-viewH);
-  return {x,y};
+  const p=G.player, viewH=VH-HUD_H;
+  const pxw = p? p.fx*TILE+TILE/2 : G.COLS*TILE/2;
+  const pyw = p? p.fy*TILE+TILE/2 : G.ROWS*TILE/2;
+  return { x: Math.round(VW/2 - pxw), y: Math.round(HUD_H + viewH/2 - pyw) };
 }
 function updateCamera(dt){
-  const t=camTarget();        // 1:1 lock — every player move moves the camera (clamped at edges)
+  const t=camTarget();        // player always centred; camera follows it 1:1
   G.boardX = t.x; G.boardY = t.y;
 }
 

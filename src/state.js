@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20260619n';
+import { CONFIG } from './config.js?v=20260619o';
 
 // =========== State & persistence ===========
 // One source of truth. getState() is read-only; mutate via patch()/save().
