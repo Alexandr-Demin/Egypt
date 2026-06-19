@@ -30,24 +30,22 @@ function R(x, X, Y, W, H, c){ x.fillStyle = c; x.fillRect(X, Y, W, H); }
 
 // ---- builders (each returns a canvas) ----
 function spAnubis(){
-  // Hero in the bright-gold neon key: a glowing jackal head, black facial
-  // cuts, a darker-gold rim for shape. Reads as a single luminous yellow form.
+  // Chibi Anubis: big jackal head with tall pointed gold ears, a dark muzzle,
+  // glinting eyes and a tiny body. All-gold so it pops on the black floor —
+  // only the inner cuts (ears notch, eyes, muzzle) are dark.
   const c = mk(16), x = c.getContext('2d'); const P = PAL;
-  const y = P.gold, dk = P.goldD, hi = P.goldHi, blk = P.black;
-  // pointed ears
-  R(x,3,0,3,5,y);  R(x,10,0,3,5,y);
-  R(x,4,1,1,3,dk); R(x,11,1,1,3,dk);     // inner-ear shadow
-  // head / nemes mass
-  R(x,4,4,8,9,y);
-  R(x,4,4,8,1,hi);                        // top light
-  R(x,4,12,8,1,dk);                       // chin shadow
-  R(x,4,5,1,7,dk); R(x,11,5,1,7,dk);      // nemes lappet edges
-  // long snout
-  R(x,6,12,4,3,y); R(x,6,14,4,1,dk); R(x,7,11,2,1,y);
-  // eyes
-  R(x,6,7,1,2,blk); R(x,9,7,1,2,blk);
-  // usekh collar hint
-  R(x,5,13,6,1,dk);
+  const y = P.gold, dk = P.goldD, hi = P.goldHi, blk = P.blackD, w = P.white;
+  // ears — gold, pointed, with a dark inner notch
+  R(x,4,0,1,2,y);  R(x,3,2,3,3,y);  R(x,4,2,1,2,blk);     // left
+  R(x,11,0,1,2,y); R(x,10,2,3,3,y); R(x,11,2,1,2,blk);    // right
+  // head
+  R(x,3,4,10,7,y); R(x,3,4,10,1,hi); R(x,3,10,10,1,dk);
+  // eyes — dark with a light glint
+  R(x,5,6,2,2,blk); R(x,9,6,2,2,blk); R(x,5,6,1,1,w); R(x,9,6,1,1,w);
+  // muzzle / snout — dark, lower-centre of the face
+  R(x,6,9,4,2,blk); R(x,7,8,2,1,dk);
+  // tiny body + legs
+  R(x,6,11,4,3,y); R(x,6,11,4,1,dk); R(x,5,14,2,2,y); R(x,9,14,2,2,y);
   return c;
 }
 
