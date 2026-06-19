@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619u';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619u';
-import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260619u';
-import { getState, patch, reset } from './state.js?v=20260619u';
-import * as sound from './sound.js?v=20260619u';
+import { LEVELS } from './levels.js?v=20260619w';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619w';
+import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260619w';
+import { getState, patch, reset } from './state.js?v=20260619w';
+import * as sound from './sound.js?v=20260619w';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -17,6 +17,7 @@ const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
 // Hero orientation: the sprite (feet at its bottom) is rotated so the feet point
 // at the wall it slides into — i.e. it always lands feet-first.
 const HERO_ANGLE = { down:0, left:Math.PI/2, up:Math.PI, right:-Math.PI/2 };
+const INTRO_DUR = 1.8;   // level-entrance: pyramid → door opens → hero appears → pyramid fades
 
 const G = {
   canvas:null, ctx:null, scene:'title', t:0, last:0,
@@ -24,6 +25,7 @@ const G = {
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, exitPos:{x:0,y:0},
   boardX:0, boardY:0, fvar:[], wvar:[],
   player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
+  intro:null, startCell:null,
   particles:[], trail:[], shake:0, hs:0, flash:0, flashCol:'#fff',
   psx:1, psy:1, buttons:[], trans:null, dead:false, deadTimer:0,
   dustTimer:0,
@@ -91,6 +93,8 @@ function parse(def){
     if(G.grid[y][x]==='floor' && !(x===G.player.cx && y===G.player.cy)){ G.coins.add(k); G.coinsLeft++; }
   }
   G.bufDir = null; G.heroAngle = 0;
+  G.startCell = G.player ? { x:G.player.cx, y:G.player.cy } : null;  // entrance animation site
+  G.intro = 0;                       // start the level-entrance intro
   const tgt = camTarget();          // snap camera onto the player at load
   G.boardX = tgt.x; G.boardY = tgt.y;
   G.psx = G.psy = 1;
@@ -183,7 +187,7 @@ function onButton(id){
 }
 
 function setDir(d){
-  if(G.scene!=='play' || G.trans || G.dead || !G.player) return;
+  if(G.scene!=='play' || G.trans || G.dead || G.intro!==null || !G.player) return;
   if(G.player.moving){ G.bufDir=d; return; }  // buffer input mid-slide → instant turn at the wall
   doMove(d);
 }
@@ -210,6 +214,7 @@ function update(dt){
   if(G.trans){ updateTransition(dt); }
 
   if(G.scene!=='play') return;
+  if(G.intro!==null){ G.intro+=dt; if(G.intro>=INTRO_DUR) G.intro=null; if(G.player) updateCamera(dt); return; } // entrance intro
   if(G.hs>0){ G.hs-=dt; return; }     // hit-stop freezes the world
   if(G.dead){ G.deadTimer-=dt; if(G.deadTimer<=0) respawnOrEnd(); if(G.player) updateCamera(dt); return; }
 
@@ -381,10 +386,15 @@ function renderPlay(ctx){
       }
     }
     if(!G.dead || G._won){
-      ctx.save(); ctx.translate(Math.round(cx), Math.round(cy)); ctx.rotate(ang); ctx.scale(G.psx,G.psy);
-      ctx.drawImage(sprite(p.moving?'ball':'anubis'), -8, -8); ctx.restore();
+      // during the intro the hero stays hidden until the door opens, then fades up
+      let a=1, ddy=0;
+      if(G.intro!==null){ const tI=Math.min(1,G.intro/INTRO_DUR); a=Math.max(0,Math.min(1,(tI-0.5)/0.4)); ddy=(1-a)*6; }
+      if(a>0){ ctx.save(); ctx.globalAlpha=a; ctx.translate(Math.round(cx), Math.round(cy+ddy)); ctx.rotate(ang); ctx.scale(G.psx,G.psy);
+        ctx.drawImage(sprite(p.moving?'ball':'anubis'), -8, -8); ctx.restore(); ctx.globalAlpha=1; }
     }
   }
+  // entrance pyramid (over the hidden hero): animates during intro, then a faint ghost
+  drawEntrance(ctx, bx, by);
   // particles (stored in world space — offset by the camera origin)
   for(const pt of G.particles){ ctx.globalAlpha=Math.max(0,Math.min(1,pt.life/pt.maxLife));
     ctx.fillStyle=pt.color; ctx.fillRect(Math.round(bx+pt.x),Math.round(by+pt.y),pt.size,pt.size); }
@@ -480,6 +490,39 @@ function drawWallEdges(ctx, x0,y0,x1,y1){
     roundCornerDotted(ctx,PX,PY,wpx,wpy,S,W,'BL'); roundCornerDotted(ctx,PX,PY,wpx,wpy,S,E,'BR');
   }
   ctx.globalAlpha=1;
+}
+
+// Level-entrance pyramid at the start cell: a stepped sandstone pyramid with a
+// gold capstone and crimson contour, sitting inside the room. During the intro a
+// door of light opens, then it fades to a faint ghost (the hero is revealed).
+function drawEntrance(ctx, bx, by){
+  if(!G.startCell) return;
+  const intro = G.intro!==null;
+  const tI  = intro ? Math.min(1, G.intro/INTRO_DUR) : 1;
+  const pyrA = intro ? (tI<0.5 ? 1 : 1-(tI-0.5)/0.5*0.86) : 0.14;   // 1 → ~0.14 ghost
+  if(pyrA<=0.02) return;
+  const cx=Math.round(bx+G.startCell.x*TILE+8), base=Math.round(by+G.startCell.y*TILE+12);
+  const steps=4, sh=6, baseHW=20, apex=base-steps*sh-3;
+  ctx.save(); ctx.globalAlpha=pyrA;
+  // stepped sandstone blocks (narrowing upward)
+  for(let s=0;s<steps;s++){
+    const yTop=base-(s+1)*sh, hw=Math.round(baseHW*(steps-s)/steps);
+    ctx.fillStyle=PAL.gold;   ctx.fillRect(cx-hw, yTop, hw*2, sh);
+    ctx.fillStyle=PAL.goldHi; ctx.fillRect(cx-hw, yTop, hw*2, 1);        // course light
+    ctx.fillStyle=PAL.goldD;  ctx.fillRect(cx-hw, yTop+sh-1, hw*2, 1);   // course shadow
+  }
+  ctx.fillStyle=PAL.goldHi; ctx.fillRect(cx-2, apex, 4, 3);              // capstone
+  // crimson contour edges (echoes the maze walls) + ground line
+  ctx.strokeStyle=PAL.wallEdge; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx-baseHW,base); ctx.lineTo(cx,apex); ctx.lineTo(cx+baseHW,base); ctx.stroke();
+  ctx.fillStyle=PAL.wall; ctx.fillRect(cx-baseHW, base, baseHW*2, 1);
+  // arched door, fills with light as it opens
+  const dOpen = intro ? Math.min(1, Math.max(0,(tI-0.25)/0.25)) : 1;
+  const dw=8, dh=11;
+  ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-dw/2-1, base-dh-1, dw+2, dh+1);  // dark doorway
+  ctx.globalAlpha=pyrA*0.9*dOpen; ctx.fillStyle=PAL.goldHi;
+  ctx.fillRect(cx-dw/2, base-Math.round(dh*dOpen), dw, Math.round(dh*dOpen)); // light pours up
+  ctx.restore();
 }
 
 function drawHUD(ctx){
