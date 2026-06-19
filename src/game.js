@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619m';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619m';
-import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619m';
-import { getState, patch } from './state.js?v=20260619m';
-import * as sound from './sound.js?v=20260619m';
+import { LEVELS } from './levels.js?v=20260619n';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619n';
+import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619n';
+import { getState, patch } from './state.js?v=20260619n';
+import * as sound from './sound.js?v=20260619n';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -23,7 +23,7 @@ const G = {
   levelIndex:0, score:0, lives:3,
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, exitPos:{x:0,y:0},
   boardX:0, boardY:0, fvar:[], wvar:[],
-  player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0,
+  player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
   particles:[], trail:[], shake:0, hs:0, flash:0, flashCol:'#fff',
   psx:1, psy:1, buttons:[], trans:null, dead:false, deadTimer:0,
   dustTimer:0,
@@ -193,6 +193,7 @@ function doMove(d){
   const [dx,dy]=DIRS[d]; let nx=G.player.cx, ny=G.player.cy;
   while(!isWall(nx+dx,ny+dy)){ nx+=dx; ny+=dy; }
   if(nx===G.player.cx && ny===G.player.cy) return false;
+  G.slideFromX=G.player.cx; G.slideFromY=G.player.cy;   // origin for speed-line length
   G.player.tx=nx; G.player.ty=ny; G.player.moving=true; G.dir=d;
   G.heroAngle = HERO_ANGLE[d];   // face feet toward the wall we slide into
   G.psx=0.78; G.psy=1.3;         // local: thin across, stretched toward the feet
@@ -361,19 +362,28 @@ function renderPlay(ctx){
     ctx.globalAlpha=0.5+0.3*Math.sin(G.t*8); ctx.fillStyle=PAL.red; // eye glow
     ctx.fillRect(px+6,py+4,1,1); ctx.fillRect(px+9,py+4,1,1); ctx.globalAlpha=1; }
 
-  // player (rotated feet-to-wall, squash/stretch in its own frame, legs animated)
+  // player — slides as a stretched "ball" trailing speed-lines; lands as the jackal
   const p=G.player;
   if(p){
-    const ang=G.heroAngle||0;
-    for(let i=0;i<G.trail.length;i++){ const tr=G.trail[i]; ctx.globalAlpha=0.05*(i+1);
-      ctx.save(); ctx.translate(Math.round(bx+tr.x*TILE+8), Math.round(by+tr.y*TILE+8)); ctx.rotate(ang);
-      ctx.drawImage(sprite('anubis'), -8, -8); ctx.restore(); }
-    ctx.globalAlpha=1;
+    const ang=G.heroAngle||0, cx=bx+p.fx*TILE+8, cy=by+p.fy*TILE+8;
+    if(p.moving && G.dir && (!G.dead||G._won)){
+      // speed-lines behind, length grows with distance flown this slide
+      const trav=Math.hypot(p.fx-G.slideFromX, p.fy-G.slideFromY)*TILE;
+      const len=Math.min(44, trav*0.95);
+      if(len>3){
+        const [ddx,ddy]=DIRS[G.dir], ox=-ddx, oy=-ddy, qx=-ddy, qy=ddx;  // back + perpendicular
+        ctx.lineWidth=1;
+        for(const off of [-5,-2,2,5]){
+          const hx=cx+qx*off+ox*5, hy=cy+qy*off+oy*5, tx=hx+ox*len, ty=hy+oy*len;
+          const g=ctx.createLinearGradient(hx,hy,tx,ty);
+          g.addColorStop(0,PAL.goldHi); g.addColorStop(1,'rgba(255,210,30,0)');
+          ctx.strokeStyle=g; ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(tx,ty); ctx.stroke();
+        }
+      }
+    }
     if(!G.dead || G._won){
-      const cx=bx+p.fx*TILE+8, cy=by+p.fy*TILE+8;
-      const frame = p.moving ? (Math.floor(G.t*16)%2 ? 'anubisB' : 'anubisA') : 'anubis';
       ctx.save(); ctx.translate(Math.round(cx), Math.round(cy)); ctx.rotate(ang); ctx.scale(G.psx,G.psy);
-      ctx.drawImage(sprite(frame), -8, -8); ctx.restore();
+      ctx.drawImage(sprite(p.moving?'ball':'anubis'), -8, -8); ctx.restore();
     }
   }
   // particles (stored in world space — offset by the camera origin)

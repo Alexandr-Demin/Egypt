@@ -54,6 +54,18 @@ function spAnubis(frame){
   return c;
 }
 
+function spBall(){
+  // The hero's in-flight form: a rounded gold square (squashed into a streak by
+  // game.js while sliding). Eyes sit toward the leading edge.
+  const c = mk(16), x = c.getContext('2d'); const P = PAL;
+  const y = P.gold, dk = P.goldD, hi = P.goldHi, blk = P.blackD;
+  R(x,4,3,8,10,y); R(x,3,4,10,8,y);   // rounded square (two rects = cut corners)
+  R(x,4,3,8,1,hi);                     // top sheen
+  R(x,4,11,8,1,dk);                    // bottom shade
+  R(x,5,9,2,2,blk); R(x,9,9,2,2,blk);  // eyes toward the leading edge
+  return c;
+}
+
 function spMummy(){
   const c = mk(16), x = c.getContext('2d'); const P = PAL;
   R(x,5,2,6,4,P.wrap);            // head
@@ -134,6 +146,7 @@ export function sprite(name){
     case 'anubis': c = spAnubis(0); break;
     case 'anubisA':c = spAnubis(1); break;
     case 'anubisB':c = spAnubis(2); break;
+    case 'ball':   c = spBall(); break;
     case 'mummy':  c = spMummy(); break;
     case 'ankh':   c = spAnkh(); break;
     case 'exit':   c = spSarcophagus(); break;
