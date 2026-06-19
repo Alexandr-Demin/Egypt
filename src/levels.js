@@ -3,44 +3,40 @@
 //          X mummy (horizontal patrol)   ^ spikes
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
 
-// Open rooms of varying size & offset joined by short corridors and a tomb
-// chamber. Coins are spawned by the game ONLY on tiles a slide can pass through
-// (computeSwept), so the placed count always equals the collectible count.
+// Level 1 — a gentle starter that introduces the slide. Distinct room shapes,
+// start (P) → exit (E) along one clear path: small square → wide pillar hall →
+// tall narrow shaft → donut room (central pillar) → sarcophagus. Coins are
+// spawned by the game ONLY on tiles a slide can pass through (computeSwept), so
+// the placed count always equals the collectible count.
 // ROWS is authored top-down for readability, then flipped at export so play runs
 // BOTTOM-TO-TOP: the hero starts at the bottom and climbs up to the sarcophagus.
 const ROWS = [
-  '################',
-  '#P.....#########',
-  '#......#########',
-  '#......#########',
-  '#......#########',
-  '######.#########',
-  '######.#########',
-  '####........####',
-  '####.X..#...####',
-  '####.....#..####',
-  '####........####',
-  '###########.####',
-  '###########.####',
-  '#######........#',
-  '#######..#.....#',
-  '#######...#....#',
-  '#######...X....#',
-  '#######.########',
-  '#######.########',
-  '##........######',
-  '##..#.....######',
-  '##....#...######',
-  '##........######',
-  '##.#############',
-  '##.#############',
-  '#.......########',
-  '#...#...########',
-  '#.......########',
-  '#......E########',
-  '################',
+  '##############',
+  '#P...#########',   // A — small start square
+  '#....#########',
+  '#....#########',
+  '#....#########',
+  '#.############',   // shaft A→B
+  '#............#',   // B — wide hall
+  '#..#.....#...#',   //     with two pillars
+  '#............#',
+  '#............#',
+  '############.#',   // shaft B→C
+  '#########....#',   // C — tall narrow shaft
+  '#########....#',
+  '#########....#',
+  '#########....#',
+  '#########....#',
+  '#########....#',
+  '#########.####',   // shaft C→D
+  '##........####',   // D — donut room
+  '##........####',
+  '##..##....####',   //     central pillar
+  '##........####',
+  '##....E...####',   //     sarcophagus
+  '##############',
 ];
 
 export const LEVELS = [
-  { name: 'TOMB OF ANUBIS', map: ROWS.slice().reverse() },
+  { name: 'ANTECHAMBER', map: ROWS.slice().reverse() },
 ];
