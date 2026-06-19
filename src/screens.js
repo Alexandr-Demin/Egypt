@@ -2,37 +2,42 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619q';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619s';
 
-// neon night: dark void, twinkling crimson/gold stars, a gold moon, and
-// glowing crimson pyramid silhouettes over a neon horizon (Egypt, after dark).
-function bgScene(ctx, VW, VH, t){
+// twinkling starfield on the dark "Curse" void — shared backdrop for the screens
+function starfield(ctx, VW, VH, t){
   ctx.fillStyle = PAL.bg; ctx.fillRect(0, 0, VW, VH);
-  // starfield (deterministic positions, gentle twinkle)
-  for(let i=0;i<44;i++){
-    const sx = (i*73) % VW, sy = (i*131) % (VH-70);
-    const tw = 0.5 + 0.5*Math.sin(t*2 + i);
-    ctx.globalAlpha = 0.25 + 0.55*tw;
-    ctx.fillStyle = (i % 5 === 0) ? PAL.gold : PAL.lapisL;
+  for(let i=0;i<46;i++){
+    const sx = (i*53) % VW, sy = (i*97) % VH, tw = 0.5 + 0.5*Math.sin(t*2 + i);
+    ctx.globalAlpha = 0.2 + 0.5*tw;
+    ctx.fillStyle = (i % 5 === 0) ? PAL.gold : PAL.wallHi;
     ctx.fillRect(sx, sy, 1, 1);
   }
   ctx.globalAlpha = 1;
-  // gold moon
-  const sx = VW/2, sy = 86 + Math.sin(t*0.6)*2;
-  ctx.fillStyle = PAL.goldD;  ctx.beginPath(); ctx.arc(sx, sy, 30, 0, 7); ctx.fill();
-  ctx.fillStyle = PAL.gold;   ctx.beginPath(); ctx.arc(sx, sy, 26, 0, 7); ctx.fill();
-  ctx.fillStyle = PAL.goldHi; ctx.beginPath(); ctx.arc(sx-6, sy-6, 15, 0, 7); ctx.fill();
-  // glowing pyramids
-  function pyr(px, base, w){
-    ctx.fillStyle = '#140406';
-    ctx.beginPath(); ctx.moveTo(px, base); ctx.lineTo(px+w/2, base-w*0.7); ctx.lineTo(px+w, base); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = PAL.lapisL; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(px, base); ctx.lineTo(px+w/2, base-w*0.7); ctx.lineTo(px+w, base); ctx.stroke();
+}
+
+// deterministic 0..1 hash for the dotted contour
+function h2(a,b){ const n=Math.sin(a*127.1+b*311.7)*43758.5453; return n-Math.floor(n); }
+// Dotted crimson contour (same look as the maze walls) around a rect — the UI's
+// signature frame, used for the screen border and outlined buttons.
+function frame(ctx, X, Y, W, H){
+  for(let i=0;i<W;i++){ const wx=X+i;
+    if(h2(wx*1.7+3,Y*1.3+7)>0.12){ ctx.fillStyle=h2(wx,Y)>0.55?PAL.wallEdge:PAL.wallHi; ctx.fillRect(X+i,Y,1,1); }
+    if(h2(wx*1.7+3,(Y+H)*1.3+7)>0.12){ ctx.fillStyle=h2(wx,Y+H)>0.55?PAL.wallEdge:PAL.wallHi; ctx.fillRect(X+i,Y+H-1,1,1); }
+    if(h2(wx*1.9+5,(Y+1)*1.5)>0.4){ ctx.fillStyle=PAL.wall; ctx.fillRect(X+i,Y+1,1,1); }
+    if(h2(wx*1.9+5,(Y+H-2)*1.5)>0.4){ ctx.fillStyle=PAL.wall; ctx.fillRect(X+i,Y+H-2,1,1); }
   }
-  pyr(-10, VH-60, 120); pyr(VW-110, VH-60, 130); pyr(60, VH-60, 100);
-  // dark ground + neon horizon line
-  ctx.fillStyle = '#140406'; ctx.fillRect(0, VH-60, VW, 60);
-  ctx.fillStyle = PAL.lapisL; ctx.fillRect(0, VH-60, VW, 1);
+  for(let j=0;j<H;j++){ const wy=Y+j;
+    if(h2(X*1.3+7,wy*1.7+3)>0.12){ ctx.fillStyle=h2(X,wy)>0.55?PAL.wallEdge:PAL.wallHi; ctx.fillRect(X,Y+j,1,1); }
+    if(h2((X+W)*1.3+7,wy*1.7+3)>0.12){ ctx.fillStyle=h2(X+W,wy)>0.55?PAL.wallEdge:PAL.wallHi; ctx.fillRect(X+W-1,Y+j,1,1); }
+    if(h2((X+1)*1.5,wy*1.9+5)>0.4){ ctx.fillStyle=PAL.wall; ctx.fillRect(X+1,Y+j,1,1); }
+    if(h2((X+W-2)*1.5,wy*1.9+5)>0.4){ ctx.fillStyle=PAL.wall; ctx.fillRect(X+W-2,Y+j,1,1); }
+  }
+}
+// Outlined button: dotted contour frame + centred gold label.
+function frameBtn(ctx, b, label, scale){
+  frame(ctx, b.x, b.y, b.w, b.h);
+  drawTextCentered(ctx, label, b.x+b.w/2, b.y+(b.h-7*scale)/2, PAL.gold, scale);
 }
 
 function button(ctx, b, label, t, opts={}){
@@ -52,21 +57,21 @@ function button(ctx, b, label, t, opts={}){
 }
 
 export function renderTitle(ctx, VW, VH, t, data){
-  bgScene(ctx, VW, VH, t);
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);                 // screen border contour
   // title
-  drawTextCentered(ctx, 'EGYPT', VW/2, 28, PAL.blackD, 4);          // shadow
-  drawTextCentered(ctx, 'EGYPT', VW/2, 26, PAL.gold, 4);
-  drawTextCentered(ctx, 'TOMB OF ANUBIS', VW/2, 60, PAL.lapisHi, 1);
+  drawTextCentered(ctx, 'EGYPT', VW/2, 40, PAL.blackD, 4);          // shadow
+  drawTextCentered(ctx, 'EGYPT', VW/2, 38, PAL.gold, 4);
+  drawTextCentered(ctx, 'TOMB OF ANUBIS', VW/2, 74, PAL.wallEdge, 1);
+  if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 90, PAL.goldHi, 1);
   // bobbing Anubis hero
-  const hero = sprite('anubis'); const hy = VH-118 + Math.sin(t*2)*3;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(hero, VW/2-16, hy, 32, 32);
-  // PLAY button
-  const b = { id:'play', x: VW/2-44, y: VH-58, w:88, h:26 };
-  button(ctx, b, 'PLAY', t, { pulse:true, scale:2 });
-  // blink prompt + best
-  if(Math.sin(t*3) > -0.2) drawTextCentered(ctx, 'TAP TO START', VW/2, VH-22, '#f0e0b0', 1);
-  if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 74, PAL.goldHi, 1);
+  ctx.drawImage(sprite('anubis'), VW/2-16, 110 + Math.sin(t*2)*3, 32, 32);
+  // PLAY button (dotted contour outline)
+  const b = { id:'play', x: VW/2-46, y: 198, w:92, h:28 };
+  frameBtn(ctx, b, 'PLAY', 2);
+  // blink prompt
+  if(Math.sin(t*3) > -0.2) drawTextCentered(ctx, 'TAP TO START', VW/2, 252, PAL.goldHi, 1);
   return [b];
 }
 
