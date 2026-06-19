@@ -101,6 +101,3 @@ This makes regressions traceable from git history.
 | `sw.js` | Service worker (network-first, ignores localhost). |
 | `scripts/sync-web.mjs` | Mirrors the web surface into `www/` for Capacitor. |
 
----
-
-*Scaffolded from the STRAIN project conventions.*

@@ -49,7 +49,7 @@ changed files. Push only when green.
 ## 3. Known-bug regression guards
 
 _Log bug IDs here as they are found and fixed, with the exact probe that
-catches a regression (mirror STRAIN's BUG-### convention)._
+catches a regression (BUG-### convention)._
 
 | ID | Summary | Regression probe |
 |----|---------|------------------|

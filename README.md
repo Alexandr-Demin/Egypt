@@ -1,8 +1,8 @@
 # EGYPT
 
 Vanilla-JS PWA game (no build step), wrapped for Android via Capacitor.
-Scaffolded from the STRAIN project conventions — see [CLAUDE.md](CLAUDE.md)
-for the working rules (QA-before-push, cache-buster discipline, commit style).
+See [CLAUDE.md](CLAUDE.md) for the working rules (QA-before-push,
+cache-buster discipline, commit style).
 
 ## Run locally
 
