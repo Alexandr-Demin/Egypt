@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619s';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619s';
-import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619s';
-import { getState, patch } from './state.js?v=20260619s';
-import * as sound from './sound.js?v=20260619s';
+import { LEVELS } from './levels.js?v=20260619t';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619t';
+import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260619t';
+import { getState, patch, reset } from './state.js?v=20260619t';
+import * as sound from './sound.js?v=20260619t';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -177,6 +177,9 @@ function onButton(id){
   sound.play('tap');
   if(id==='play'||id==='retry') transition(startRun);
   else if(id==='menu') transition(()=>{ G.scene='title'; });
+  else if(id==='settings') transition(()=>{ G.scene='menu'; });
+  else if(id==='sound') sound.setEnabled(!sound.isEnabled());          // toggle, stay on menu
+  else if(id==='reset'){ reset(); G.flash=0.4; G.flashCol=PAL.goldHi; } // wipe progress + flash
 }
 
 function setDir(d){
@@ -306,6 +309,7 @@ function render(){
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0}); }
+  else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else { G.buttons=[]; renderPlay(ctx); }

@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619s';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619t';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -39,6 +39,14 @@ function frameBtn(ctx, b, label, scale){
   frame(ctx, b.x, b.y, b.w, b.h);
   drawTextCentered(ctx, label, b.x+b.w/2, b.y+(b.h-7*scale)/2, PAL.gold, scale);
 }
+// small gold cog icon, centred on (cx,cy) — the settings button glyph
+function gear(ctx, cx, cy){
+  ctx.fillStyle = PAL.gold;
+  ctx.fillRect(cx-1,cy-7,2,3); ctx.fillRect(cx-1,cy+4,2,3);   // top/bottom teeth
+  ctx.fillRect(cx-7,cy-1,3,2); ctx.fillRect(cx+4,cy-1,3,2);   // left/right teeth
+  ctx.beginPath(); ctx.arc(cx,cy,5,0,7); ctx.fill();          // body
+  ctx.fillStyle = PAL.bg; ctx.beginPath(); ctx.arc(cx,cy,2,0,7); ctx.fill(); // hole
+}
 
 function button(ctx, b, label, t, opts={}){
   const accent = opts.accent || PAL.gold;
@@ -72,7 +80,27 @@ export function renderTitle(ctx, VW, VH, t, data){
   frameBtn(ctx, b, 'PLAY', 2);
   // blink prompt
   if(Math.sin(t*3) > -0.2) drawTextCentered(ctx, 'TAP TO START', VW/2, 252, PAL.goldHi, 1);
-  return [b];
+  // settings (cog) button, top-right
+  const s = { id:'settings', x: VW-28, y: 14, w:22, h:22 };
+  gear(ctx, s.x+11, s.y+11);
+  return [b, s];
+}
+
+export function renderMenu(ctx, VW, VH, t, data){
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);
+  drawTextCentered(ctx, 'MENU', VW/2, 30, PAL.gold, 3);
+  const b1 = { id:'play',  x:30, y:86,  w:VW-60, h:30 };
+  const b2 = { id:'sound', x:30, y:132, w:VW-60, h:30 };
+  const b3 = { id:'reset', x:30, y:178, w:VW-60, h:30 };
+  frameBtn(ctx, b1, 'PLAY', 2);
+  frameBtn(ctx, b2, 'SOUND  ' + (data && data.soundOn ? 'ON' : 'OFF'), 2);
+  frameBtn(ctx, b3, 'RESET', 2);
+  const back = { id:'menu', x:VW/2-32, y:224, w:64, h:18 };
+  frameBtn(ctx, back, 'BACK', 1);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sprite('anubis'), VW/2-8, 250, 16, 16);
+  return [b1, b2, b3, back];
 }
 
 export function renderWin(ctx, VW, VH, t, data){
