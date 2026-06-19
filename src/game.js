@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619l';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619l';
-import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619l';
-import { getState, patch } from './state.js?v=20260619l';
-import * as sound from './sound.js?v=20260619l';
+import { LEVELS } from './levels.js?v=20260619m';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619m';
+import { renderTitle, renderWin, renderGameover } from './screens.js?v=20260619m';
+import { getState, patch } from './state.js?v=20260619m';
+import * as sound from './sound.js?v=20260619m';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -14,13 +14,16 @@ const ENEMY = 3;    // tiles/sec
 const HIT = 0.55;   // collision distance (tiles)
 
 const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
+// Hero orientation: the sprite (feet at its bottom) is rotated so the feet point
+// at the wall it slides into — i.e. it always lands feet-first.
+const HERO_ANGLE = { down:0, left:Math.PI/2, up:Math.PI, right:-Math.PI/2 };
 
 const G = {
   canvas:null, ctx:null, scene:'title', t:0, last:0,
   levelIndex:0, score:0, lives:3,
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, exitPos:{x:0,y:0},
   boardX:0, boardY:0, fvar:[], wvar:[],
-  player:null, enemies:[], dir:null, bufDir:null, lastCell:'',
+  player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0,
   particles:[], trail:[], shake:0, hs:0, flash:0, flashCol:'#fff',
   psx:1, psy:1, buttons:[], trans:null, dead:false, deadTimer:0,
   dustTimer:0,
@@ -87,7 +90,7 @@ function parse(def){
     const [x,y]=k.split(',').map(Number);
     if(G.grid[y][x]==='floor' && !(x===G.player.cx && y===G.player.cy)){ G.coins.add(k); G.coinsLeft++; }
   }
-  G.bufDir = null;
+  G.bufDir = null; G.heroAngle = 0;
   const tgt = camTarget();          // snap camera onto the player at load
   G.boardX = tgt.x; G.boardY = tgt.y;
   G.psx = G.psy = 1;
@@ -191,8 +194,8 @@ function doMove(d){
   while(!isWall(nx+dx,ny+dy)){ nx+=dx; ny+=dy; }
   if(nx===G.player.cx && ny===G.player.cy) return false;
   G.player.tx=nx; G.player.ty=ny; G.player.moving=true; G.dir=d;
-  // stretch in travel direction
-  if(dx){ G.psx=1.3; G.psy=0.8; } else { G.psx=0.8; G.psy=1.3; }
+  G.heroAngle = HERO_ANGLE[d];   // face feet toward the wall we slide into
+  G.psx=0.78; G.psy=1.3;         // local: thin across, stretched toward the feet
   sound.play('tap');
   return true;
 }
@@ -358,15 +361,19 @@ function renderPlay(ctx){
     ctx.globalAlpha=0.5+0.3*Math.sin(G.t*8); ctx.fillStyle=PAL.red; // eye glow
     ctx.fillRect(px+6,py+4,1,1); ctx.fillRect(px+9,py+4,1,1); ctx.globalAlpha=1; }
 
-  // player trail
+  // player (rotated feet-to-wall, squash/stretch in its own frame, legs animated)
   const p=G.player;
   if(p){
-    for(let i=0;i<G.trail.length;i++){ const tr=G.trail[i]; ctx.globalAlpha=0.06*(i+1);
-      ctx.drawImage(sprite('anubis'), Math.round(bx+tr.x*TILE), Math.round(by+tr.y*TILE)); }
+    const ang=G.heroAngle||0;
+    for(let i=0;i<G.trail.length;i++){ const tr=G.trail[i]; ctx.globalAlpha=0.05*(i+1);
+      ctx.save(); ctx.translate(Math.round(bx+tr.x*TILE+8), Math.round(by+tr.y*TILE+8)); ctx.rotate(ang);
+      ctx.drawImage(sprite('anubis'), -8, -8); ctx.restore(); }
     ctx.globalAlpha=1;
     if(!G.dead || G._won){
-      const cx=bx+p.fx*TILE+8, cy=by+p.fy*TILE+8, w=16*G.psx, h=16*G.psy;
-      ctx.drawImage(sprite('anubis'), Math.round(cx-w/2), Math.round(cy-h/2), Math.round(w), Math.round(h));
+      const cx=bx+p.fx*TILE+8, cy=by+p.fy*TILE+8;
+      const frame = p.moving ? (Math.floor(G.t*16)%2 ? 'anubisB' : 'anubisA') : 'anubis';
+      ctx.save(); ctx.translate(Math.round(cx), Math.round(cy)); ctx.rotate(ang); ctx.scale(G.psx,G.psy);
+      ctx.drawImage(sprite(frame), -8, -8); ctx.restore();
     }
   }
   // particles (stored in world space — offset by the camera origin)

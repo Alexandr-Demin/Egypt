@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619l';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619m';
 
 // neon night: dark void, twinkling crimson/gold stars, a gold moon, and
 // glowing crimson pyramid silhouettes over a neon horizon (Egypt, after dark).

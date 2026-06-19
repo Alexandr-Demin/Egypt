@@ -29,10 +29,12 @@ function mk(w, h){ const c = document.createElement('canvas'); c.width = w; c.he
 function R(x, X, Y, W, H, c){ x.fillStyle = c; x.fillRect(X, Y, W, H); }
 
 // ---- builders (each returns a canvas) ----
-function spAnubis(){
+function spAnubis(frame){
   // Chibi Anubis: big jackal head with tall pointed gold ears, a dark muzzle,
   // glinting eyes and a tiny body. All-gold so it pops on the black floor —
-  // only the inner cuts (ears notch, eyes, muzzle) are dark.
+  // only the inner cuts (ears notch, eyes, muzzle) are dark. `frame`: 0 idle,
+  // 1/2 alternate the legs for a slide-run cycle (the sprite is rotated by
+  // game.js so the feet point at the wall it slides into).
   const c = mk(16), x = c.getContext('2d'); const P = PAL;
   const y = P.gold, dk = P.goldD, hi = P.goldHi, blk = P.blackD, w = P.white;
   // ears — gold, pointed, with a dark inner notch
@@ -44,8 +46,11 @@ function spAnubis(){
   R(x,5,6,2,2,blk); R(x,9,6,2,2,blk); R(x,5,6,1,1,w); R(x,9,6,1,1,w);
   // muzzle / snout — dark, lower-centre of the face
   R(x,6,9,4,2,blk); R(x,7,8,2,1,dk);
-  // tiny body + legs
-  R(x,6,11,4,3,y); R(x,6,11,4,1,dk); R(x,5,14,2,2,y); R(x,9,14,2,2,y);
+  // body
+  R(x,6,11,4,3,y); R(x,6,11,4,1,dk);
+  // legs — frame 1 lifts the left, frame 2 lifts the right
+  const ly = frame===1?13:14, ry = frame===2?13:14;
+  R(x,5,ly,2,2,y); R(x,9,ry,2,2,y);
   return c;
 }
 
@@ -126,7 +131,9 @@ export function sprite(name){
   if(_cache[name]) return _cache[name];
   let c;
   switch(name){
-    case 'anubis': c = spAnubis(); break;
+    case 'anubis': c = spAnubis(0); break;
+    case 'anubisA':c = spAnubis(1); break;
+    case 'anubisB':c = spAnubis(2); break;
     case 'mummy':  c = spMummy(); break;
     case 'ankh':   c = spAnkh(); break;
     case 'exit':   c = spSarcophagus(); break;
