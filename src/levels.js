@@ -12,11 +12,11 @@
 // BOTTOM-TO-TOP: the hero starts at the bottom and climbs up to the sarcophagus.
 const ROWS = [
   '##############',
-  '#P...#########',   // A — small start square
+  '#.P..#########',   // A — small start square (P off the wall so the entrance pyramid fits)
   '#....#########',
   '#....#########',
   '#....#########',
-  '#.############',   // shaft A→B
+  '##.###########',   // shaft A→B (aligned under P → one clean swipe down into B)
   '#............#',   // B — wide hall
   '#..#.....#...#',   //     with two pillars
   '#............#',
