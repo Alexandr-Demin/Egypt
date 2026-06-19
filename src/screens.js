@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619t';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619u';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -48,22 +48,6 @@ function gear(ctx, cx, cy){
   ctx.fillStyle = PAL.bg; ctx.beginPath(); ctx.arc(cx,cy,2,0,7); ctx.fill(); // hole
 }
 
-function button(ctx, b, label, t, opts={}){
-  const accent = opts.accent || PAL.gold;
-  const glow = opts.pulse ? (0.5 + 0.5*Math.sin(t*4)) : 0;
-  if(glow){ ctx.globalAlpha = 0.35*glow; ctx.fillStyle = accent;
-    ctx.fillRect(b.x-3, b.y-3, b.w+6, b.h+6); ctx.globalAlpha = 1; }
-  // beveled plate
-  ctx.fillStyle = opts.dark || PAL.goldD; ctx.fillRect(b.x, b.y, b.w, b.h);
-  ctx.fillStyle = accent; ctx.fillRect(b.x, b.y, b.w, b.h-2);
-  ctx.fillStyle = opts.light || PAL.goldHi; ctx.fillRect(b.x, b.y, b.w, 2);
-  ctx.fillStyle = PAL.blackD; // border
-  ctx.fillRect(b.x,b.y,b.w,1); ctx.fillRect(b.x,b.y+b.h-1,b.w,1);
-  ctx.fillRect(b.x,b.y,1,b.h); ctx.fillRect(b.x+b.w-1,b.y,1,b.h);
-  const s = opts.scale || 2;
-  drawTextCentered(ctx, label, b.x+b.w/2, b.y + (b.h - 7*s)/2, opts.text || '#3a2008', s);
-}
-
 export function renderTitle(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);
   frame(ctx, 6, 6, VW-12, VH-12);                 // screen border contour
@@ -103,35 +87,27 @@ export function renderMenu(ctx, VW, VH, t, data){
   return [b1, b2, b3, back];
 }
 
-export function renderWin(ctx, VW, VH, t, data){
-  ctx.fillStyle = '#0b0904'; ctx.fillRect(0,0,VW,VH);
-  // radiant backdrop
-  ctx.globalAlpha = 0.12 + 0.05*Math.sin(t*2); ctx.fillStyle = PAL.gold;
-  ctx.beginPath(); ctx.arc(VW/2, VH/2-20, 80, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
-  const exit = sprite('exit'); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(exit, VW/2-24, 60, 48, 48);
-  drawTextCentered(ctx, 'TOMB', VW/2, 124, PAL.gold, 3);
-  drawTextCentered(ctx, 'CLEARED', VW/2, 150, PAL.gold, 3);
+function outcome(ctx, VW, VH, t, spr, glowCol, title, titleCol, data){
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);
+  // glow + emblem
+  ctx.globalAlpha = 0.14 + 0.05*Math.sin(t*2); ctx.fillStyle = glowCol;
+  ctx.beginPath(); ctx.arc(VW/2, 92, 44, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(sprite(spr), VW/2-24, 68, 48, 48);
+  drawTextCentered(ctx, title, VW/2, 146, titleCol, 3);
   drawTextCentered(ctx, 'GOLD  '+(data?.score||0), VW/2, 184, PAL.goldHi, 2);
-  const b1 = { id:'retry', x: VW/2-70, y: VH-72, w:64, h:24 };
-  const b2 = { id:'menu',  x: VW/2+6,  y: VH-72, w:64, h:24 };
-  button(ctx, b1, 'RETRY', t, { scale:1 });
-  button(ctx, b2, 'MENU',  t, { scale:1, accent:PAL.lapisL, dark:PAL.lapis, light:PAL.lapisHi, text:'#08243f' });
+  if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 208, PAL.wallEdge, 1);
+  const b1 = { id:'retry', x: VW/2-72, y: 240, w:68, h:26 };
+  const b2 = { id:'menu',  x: VW/2+4,  y: 240, w:68, h:26 };
+  frameBtn(ctx, b1, 'RETRY', 1);
+  frameBtn(ctx, b2, 'MENU',  1);
   return [b1, b2];
 }
 
+export function renderWin(ctx, VW, VH, t, data){
+  return outcome(ctx, VW, VH, t, 'exit', PAL.gold, 'CLEARED', PAL.gold, data);
+}
+
 export function renderGameover(ctx, VW, VH, t, data){
-  ctx.fillStyle = '#0b0506'; ctx.fillRect(0,0,VW,VH);
-  ctx.globalAlpha = 0.12; ctx.fillStyle = PAL.red;
-  ctx.beginPath(); ctx.arc(VW/2, VH/2-20, 78, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
-  const mummy = sprite('mummy'); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(mummy, VW/2-24, 64, 48, 48);
-  drawTextCentered(ctx, 'CURSED!', VW/2, 130, PAL.red, 3);
-  drawTextCentered(ctx, 'GOLD  '+(data?.score||0), VW/2, 168, '#e8d8b0', 2);
-  if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 188, PAL.goldHi, 1);
-  const b1 = { id:'retry', x: VW/2-70, y: VH-72, w:64, h:24 };
-  const b2 = { id:'menu',  x: VW/2+6,  y: VH-72, w:64, h:24 };
-  button(ctx, b1, 'RETRY', t, { scale:1 });
-  button(ctx, b2, 'MENU',  t, { scale:1, accent:PAL.lapisL, dark:PAL.lapis, light:PAL.lapisHi, text:'#08243f' });
-  return [b1, b2];
+  return outcome(ctx, VW, VH, t, 'mummy', PAL.red, 'CURSED!', PAL.red, data);
 }

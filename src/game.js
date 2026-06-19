@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619t';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619t';
-import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260619t';
-import { getState, patch, reset } from './state.js?v=20260619t';
-import * as sound from './sound.js?v=20260619t';
+import { LEVELS } from './levels.js?v=20260619u';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619u';
+import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260619u';
+import { getState, patch, reset } from './state.js?v=20260619u';
+import * as sound from './sound.js?v=20260619u';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -483,8 +483,12 @@ function drawWallEdges(ctx, x0,y0,x1,y1){
 }
 
 function drawHUD(ctx){
-  ctx.fillStyle='rgba(16,4,4,0.6)'; ctx.fillRect(0,0,VW,HUD_H);
-  ctx.fillStyle=PAL.stoneD; ctx.fillRect(0,HUD_H-1,VW,1);
+  ctx.fillStyle='rgba(16,4,4,0.66)'; ctx.fillRect(0,0,VW,HUD_H);
+  // dotted crimson divider — same contour language as the maze/UI frames
+  for(let x=0;x<VW;x++){
+    if(h2(x*1.7+3, HUD_H)>0.22){ ctx.fillStyle=h2(x,9)>0.55?PAL.wallEdge:PAL.wallHi; ctx.fillRect(x, HUD_H-1, 1,1); }
+    if(h2(x*1.9+5, HUD_H+1)>0.55){ ctx.fillStyle=PAL.wall; ctx.fillRect(x, HUD_H-2, 1,1); }
+  }
   // hearts
   for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 6+i*10, 8);
   // level name
