@@ -1,8 +1,8 @@
-// =========== EGYPT — TITLE / WIN / GAMEOVER screens ===========
+// =========== SANDSLIDE — TITLE / WIN / GAMEOVER screens ===========
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619x';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706a';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -52,9 +52,8 @@ export function renderTitle(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);
   frame(ctx, 6, 6, VW-12, VH-12);                 // screen border contour
   // title
-  drawTextCentered(ctx, 'EGYPT', VW/2, 40, PAL.blackD, 4);          // shadow
-  drawTextCentered(ctx, 'EGYPT', VW/2, 38, PAL.gold, 4);
-  drawTextCentered(ctx, 'TOMB OF ANUBIS', VW/2, 74, PAL.wallEdge, 1);
+  drawTextCentered(ctx, 'SANDSLIDE', VW/2, 42, PAL.blackD, 3);          // shadow
+  drawTextCentered(ctx, 'SANDSLIDE', VW/2, 40, PAL.gold, 3);
   if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 90, PAL.goldHi, 1);
   // bobbing Anubis hero
   ctx.imageSmoothingEnabled = false;

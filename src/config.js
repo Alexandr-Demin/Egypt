@@ -1,9 +1,9 @@
-// =========== EGYPT — Config ===========
+// =========== SANDSLIDE — Config ===========
 
 // ===== BUILD =====
 // Unique build id. Bumped in lockstep with the module cache-buster
 // (`?v=...` in imports). Affects cache-busting only.
-export const BUILD = '20260619x';
+export const BUILD = '20260706a';
 
 // Forced tutorial re-run. The tutorial replays for every player whose saved
 // tutorialBuild != FORCE_TUTORIAL_BUILD. Bump MANUALLY only when you want to

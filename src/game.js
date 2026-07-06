@@ -1,12 +1,12 @@
-// =========== EGYPT — game core (v0.1) ===========
+// =========== SANDSLIDE — game core (v0.1) ===========
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260619x';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260619x';
-import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260619x';
-import { getState, patch, reset } from './state.js?v=20260619x';
-import * as sound from './sound.js?v=20260619x';
+import { LEVELS } from './levels.js?v=20260706a';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706a';
+import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260706a';
+import { getState, patch, reset } from './state.js?v=20260706a';
+import * as sound from './sound.js?v=20260706a';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide

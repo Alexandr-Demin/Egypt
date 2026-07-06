@@ -1,4 +1,4 @@
-// =========== EGYPT — level maps ===========
+// =========== SANDSLIDE — level maps ===========
 // Legend:  # wall   . gold   (space) empty floor   P start   E exit(sarcophagus)
 //          X mummy (horizontal patrol)   ^ spikes
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
@@ -16,7 +16,8 @@ const ROWS = [
   '#....#########',
   '#....#########',
   '#....#########',
-  '##.###########',   // shaft A→B (aligned under P → one clean swipe down into B)
+  '#..###########',   // A→B opening spans cols 1-2 so a left/right slide can still
+                      // reach the shaft (col-1 wall stop → up); avoids a dead end.
   '#............#',   // B — wide hall
   '#..#.....#...#',   //     with two pillars
   '#............#',
