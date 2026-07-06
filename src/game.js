@@ -2,17 +2,20 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706i';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706i';
-import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706i';
-import { getState, patch, reset } from './state.js?v=20260706i';
-import * as sound from './sound.js?v=20260706i';
-import { generateLevel } from './levelgen.js?v=20260706i';
+import { LEVELS } from './levels.js?v=20260706j';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706j';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706j';
+import { getState, patch, reset } from './state.js?v=20260706j';
+import * as sound from './sound.js?v=20260706j';
+import { generateLevel } from './levelgen.js?v=20260706j';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
 const ENEMY = 3;    // tiles/sec
 const HIT = 0.55;   // collision distance (tiles)
+const LASER_CHARGE = 3.0;                       // telegraph time before firing (s)
+const LASER_FIRE   = 0.5;                       // lethal window (s)
+const LASER_PERIOD = LASER_CHARGE + LASER_FIRE; // full charge→fire cycle
 
 const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
 // Hero orientation: the sprite (feet at its bottom) is rotated so the feet point
@@ -24,7 +27,8 @@ const G = {
   canvas:null, ctx:null, scene:'title', t:0, last:0,
   levelIndex:0, score:0, lives:3, levelName:'',
   endless:false, depth:1, runSeed:1, curMap:null, curName:'',
-  grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, exitPos:{x:0,y:0},
+  grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, coinsTotal:0, exitPos:{x:0,y:0},
+  lasers:[], laserCells:null, result:null,
   boardX:0, boardY:0, fvar:[], wvar:[],
   player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
   intro:null, startCell:null,
@@ -49,6 +53,8 @@ export function startGame(canvas){
     pos:()=>G.player?{x:G.player.cx,y:G.player.cy}:null, exit:()=>({...G.exitPos}),
     teleport:(x,y)=>{ const p=G.player; if(p){ p.cx=x;p.cy=y;p.fx=x;p.fy=y;p.tx=x;p.ty=y;p.moving=false; G.lastCell=''; } },
     pump:(n)=>{ for(let i=0;i<(n||1);i++) tick(1/60); },
+    testMap:(rows,name)=>{ G.endless=false; G.score=0; G.lives=3; parse({map:rows,name:name||'TEST'}); G.scene='play'; },
+    laserCells:()=>G.laserCells?[...G.laserCells]:[], result:()=>G.result, coinsTotal:()=>G.coinsTotal,
   };
 }
 
@@ -93,6 +99,7 @@ function parse(def){
   G.ROWS = rows.length; G.COLS = Math.max(...rows.map(r=>r.length));
   G.grid = []; G.coins = new Set(); G.coinsLeft = 0; G.enemies = []; G.fvar = []; G.wvar = [];
   const manualCoins = new Set();          // 'o' cells authored on the map (if any)
+  const laserEmitters = [];               // '='/'|' beam-gate emitters
   for(let y=0;y<G.ROWS;y++){
     G.grid[y]=[]; G.fvar[y]=[]; G.wvar[y]=[];
     for(let x=0;x<G.COLS;x++){
@@ -102,6 +109,8 @@ function parse(def){
       else if(ch==='^') t='spike';
       else if(ch==='E'){ t='exit'; G.exitPos={x,y}; }
       else if(ch==='o') manualCoins.add(x+','+y);   // hand-placed coin (walkable floor)
+      else if(ch==='=') laserEmitters.push({x,y,axis:'h'});   // horizontal beam gate
+      else if(ch==='|') laserEmitters.push({x,y,axis:'v'});   // vertical beam gate
       if(ch==='P') G.player={cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false};
       if(ch==='X') G.enemies.push({cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false,axis:'h',d:1});
       G.grid[y][x]=t;
@@ -115,6 +124,18 @@ function parse(def){
   for(const k of source){
     const [x,y]=k.split(',').map(Number);
     if(G.grid[y][x]==='floor' && !(x===G.player.cx && y===G.player.cy)){ G.coins.add(k); G.coinsLeft++; }
+  }
+  G.coinsTotal = G.coinsLeft;
+  // lasers: each emitter's beam spans the passage to the walls along its axis
+  G.lasers = []; G.laserCells = new Set();
+  for(const e of laserEmitters){
+    const cells = [[e.x, e.y]];
+    if(e.axis==='h'){ let n=e.x-1; while(!isWall(n,e.y)){ cells.push([n,e.y]); n--; }
+                      n=e.x+1; while(!isWall(n,e.y)){ cells.push([n,e.y]); n++; } }
+    else            { let n=e.y-1; while(!isWall(e.x,n)){ cells.push([e.x,n]); n--; }
+                      n=e.y+1; while(!isWall(e.x,n)){ cells.push([e.x,n]); n++; } }
+    G.lasers.push({ x:e.x, y:e.y, axis:e.axis, cells });
+    for(const [cx,cy] of cells) G.laserCells.add(cx+','+cy);
   }
   G.bufDir = null; G.heroAngle = 0;
   G.startCell = G.player ? { x:G.player.cx, y:G.player.cy } : null;  // entrance animation site
@@ -213,6 +234,7 @@ function onButton(id){
   if(id==='play') transition(()=>{ G.scene='select'; });            // PLAY → level select
   else if(id==='endless') transition(startEndless);                  // ENDLESS → generated descent
   else if(id==='retry') transition(()=> G.endless ? startEndless() : startRun(G.runStart||0));
+  else if(id==='continue') nextLevel();                             // result screen → advance
   else if(id && id.startsWith('lvl')) transition(()=>startRun(+id.slice(3)));  // pick a level card
   else if(id==='menu') transition(()=>{ G.scene='title'; });
   else if(id==='settings') transition(()=>{ G.scene='menu'; });
@@ -247,7 +269,7 @@ function update(dt){
   updateParticles(dt);
   if(G.trans){ updateTransition(dt); }
 
-  if(G.scene!=='play') return;
+  if(G.scene!=='play'){ if(G.scene==='result' && G.result) G.result.t += dt; return; }
   if(G.intro!==null){ G.intro+=dt; if(G.intro>=INTRO_DUR) G.intro=null; if(G.player) updateCamera(dt); return; } // entrance intro
   if(G.hs>0){ G.hs-=dt; return; }     // hit-stop freezes the world
   if(G.dead){ G.deadTimer-=dt; if(G.deadTimer<=0) respawnOrEnd(); if(G.player) updateCamera(dt); return; }
@@ -268,6 +290,12 @@ function update(dt){
     if(stopped && !G.dead) onStop();
   } else { G.trail.length=0; }
   if(G.player) updateCamera(dt);      // camera tracks the player 1:1 after the move resolves
+
+  // lasers — lethal while firing (also catches a hero resting on a live beam)
+  if(G.laserCells && G.laserCells.size && !G.dead && p){
+    if((G.t % LASER_PERIOD) >= LASER_CHARGE &&
+       G.laserCells.has(Math.round(p.fx)+','+Math.round(p.fy))){ die(); return; }
+  }
 
   // enemies
   for(const e of G.enemies){
@@ -298,6 +326,7 @@ function enterCell(x,y){
     burst(x*TILE+8, y*TILE+8, 6, PAL.gold, 30, 0.5); sound.play('tap'); G.flash=0.12; G.flashCol=PAL.goldHi; }
   const t=G.grid[y][x];
   if(t==='spike'){ die(); return; }
+  if(G.laserCells && G.laserCells.has(k) && (G.t % LASER_PERIOD) >= LASER_CHARGE){ die(); return; }
   if(t==='exit'){ exitReached(); }
 }
 function onStop(){
@@ -320,8 +349,21 @@ function die(){
   sound.play('lose');
   G.deadTimer = G.lives<=0 ? 0.7 : 0.55;
 }
+// Level cleared → compute stars from coin %, persist (story only), show result screen.
+function starsFor(pct){ let s=1; if(pct>=0.6) s++; if(pct>=1) s++; return s; }
+function showResult(){
+  const total=G.coinsTotal||0, collected=Math.max(0, total-G.coinsLeft);
+  const pct = total>0 ? collected/total : 1, stars = starsFor(pct);
+  if(!G.endless){
+    const s=getState(); const st={ ...((s.progress&&s.progress.stars)||{}) };
+    st[G.levelIndex] = Math.max(st[G.levelIndex]||0, stars);
+    patch({ progress: { ...(s.progress||{}), stars: st } });
+  } else { saveBestDepth(); }
+  G.result = { name:G.levelName, total, collected, pct, stars, t:0 };
+  transition(()=>{ G.scene='result'; });
+}
 function respawnOrEnd(){
-  if(G._won){ G._won=false; nextLevel(); return; }
+  if(G._won){ G._won=false; showResult(); return; }
   if(G.lives<=0){ (G.endless?saveBestDepth:saveBest)(); transition(()=>{ G.scene='gameover'; }); }
   else { parse(G.endless ? { map:G.curMap, name:'D'+G.depth+'  '+G.curName } : LEVELS[G.levelIndex]);
     G.dead=false; G.dir=null; G.lastCell=''; G.trail.length=0; }
@@ -349,7 +391,8 @@ function render(){
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, bestDepth:getState()?.progress?.bestDepth||0}); }
-  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:LEVELS.length}); }
+  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:LEVELS.length, stars:getState()?.progress?.stars||{}}); }
+  else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0,
@@ -396,6 +439,9 @@ function renderPlay(ctx){
   ctx.globalAlpha=gl*0.5; ctx.fillStyle=PAL.lapisL; ctx.beginPath(); ctx.arc(ex,ey,12,0,7); ctx.fill();
   ctx.globalAlpha=gl*0.4; ctx.fillStyle=PAL.goldHi; ctx.beginPath(); ctx.arc(ex,ey,8,0,7); ctx.fill();
   ctx.globalAlpha=1; ctx.drawImage(sprite('exit'), Math.round(bx+G.exitPos.x*TILE), Math.round(by+G.exitPos.y*TILE));
+
+  // lasers (charge telegraph → lethal flash)
+  drawLasers(ctx, bx, by);
 
   // enemies
   for(const e of G.enemies){ const px=Math.round(bx+e.fx*TILE), py=Math.round(by+e.fy*TILE+Math.sin(G.t*6+e.cx));
@@ -444,6 +490,32 @@ function renderPlay(ctx){
 
   ctx.restore();
   drawHUD(ctx);
+}
+
+// Laser beam-gates: faint line that intensifies while charging, then a bright
+// red lethal flash. Emitter node glows white on fire.
+function drawLasers(ctx, bx, by){
+  if(!G.lasers || !G.lasers.length) return;
+  const phase = G.t % LASER_PERIOD, firing = phase >= LASER_CHARGE, charge = Math.min(1, phase/LASER_CHARGE);
+  for(const L of G.lasers){
+    for(const [cx,cy] of L.cells){
+      const px=Math.round(bx+cx*TILE), py=Math.round(by+cy*TILE);
+      if(firing){
+        ctx.globalAlpha=0.9; ctx.fillStyle=PAL.red;
+        if(L.axis==='h') ctx.fillRect(px, py+6, TILE, 4); else ctx.fillRect(px+6, py, 4, TILE);
+        ctx.globalAlpha=0.5; ctx.fillStyle=PAL.redHi;
+        if(L.axis==='h') ctx.fillRect(px, py+7, TILE, 2); else ctx.fillRect(px+7, py, 2, TILE);
+      } else {
+        const w = 1 + Math.round(charge*2);
+        ctx.globalAlpha = 0.12 + 0.55*charge; ctx.fillStyle = PAL.red;
+        if(L.axis==='h') ctx.fillRect(px, py+8-(w>>1), TILE, w); else ctx.fillRect(px+8-(w>>1), py, w, TILE);
+      }
+    }
+    const ex=Math.round(bx+L.x*TILE), ey=Math.round(by+L.y*TILE);
+    ctx.globalAlpha=1; ctx.fillStyle = firing ? PAL.white : PAL.red; ctx.fillRect(ex+5,ey+5,6,6);
+    ctx.fillStyle = firing ? PAL.red : '#4a0a0a'; ctx.fillRect(ex+7,ey+7,2,2);
+  }
+  ctx.globalAlpha=1;
 }
 
 // small flickering torch flame (screen coords passed in)

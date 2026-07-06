@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706i';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706j';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -48,14 +48,15 @@ function gear(ctx, cx, cy){
   ctx.fillStyle = PAL.bg; ctx.beginPath(); ctx.arc(cx,cy,2,0,7); ctx.fill(); // hole
 }
 
-// Empty (unfilled) 5-point star outline centred on (cx,cy). Used on the level
-// cards — hollow now; a fill can light up per earned rating later.
-function starOutline(ctx, cx, cy, r, col){
-  ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath();
+// 5-point star centred on (cx,cy): outline (unearned) or filled (earned).
+function starPath(ctx, cx, cy, r){
+  ctx.beginPath();
   for(let i=0;i<10;i++){ const a=-Math.PI/2 + i*Math.PI/5, rr=(i%2)?r*0.42:r;
     const px=cx+Math.cos(a)*rr, py=cy+Math.sin(a)*rr; i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
-  ctx.closePath(); ctx.stroke();
+  ctx.closePath();
 }
+function starOutline(ctx, cx, cy, r, col){ ctx.strokeStyle=col; ctx.lineWidth=1; starPath(ctx,cx,cy,r); ctx.stroke(); }
+function starFilled(ctx, cx, cy, r, col){ ctx.fillStyle=col; starPath(ctx,cx,cy,r); ctx.fill(); }
 
 // Level-select: a 2×5 grid of big cards, each with its number and three hollow
 // stars. The first `unlocked` cards are selectable (return button rects); the
@@ -76,8 +77,10 @@ export function renderSelect(ctx, VW, VH, t, data){
     ctx.globalAlpha = avail ? 1 : 0.3;
     frame(ctx, x, y, CW, CH);
     drawTextCentered(ctx, String(i+1), x+CW/2, y+5, avail?PAL.gold:PAL.wallHi, 3);
-    const scx = x+CW/2, sy = y+CH-9;
-    for(let s=-1;s<=1;s++) starOutline(ctx, scx+s*13, sy, 5, avail?PAL.goldHi:PAL.wallHi);
+    const scx = x+CW/2, sy = y+CH-9, earned = (data && data.stars && data.stars[i]) || 0;
+    for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*13;
+      if(avail && s<earned) starFilled(ctx, sx2, sy, 5, PAL.gold);
+      else starOutline(ctx, sx2, sy, 5, avail?PAL.goldHi:PAL.wallHi); }
     ctx.restore();
     if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
   }
@@ -155,4 +158,41 @@ export function renderWin(ctx, VW, VH, t, data){
 
 export function renderGameover(ctx, VW, VH, t, data){
   return outcome(ctx, VW, VH, t, 'mummy', PAL.red, 'CURSED!', PAL.red, data);
+}
+
+// Level-result dialog: stars pop in one by one, then a coin bar fills to the
+// collected percentage; CONTINUE advances. `r.t` is the animation clock (s).
+export function renderResult(ctx, VW, VH, t, r){
+  const rt = r ? r.t : 0, stars = r ? r.stars : 0, pct = r ? r.pct : 0;
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);
+  drawTextCentered(ctx, 'CLEARED', VW/2, 34, PAL.gold, 3);
+  if(r && r.name) drawTextCentered(ctx, r.name, VW/2, 66, PAL.goldHi, 1);
+  // three stars: earned ones fly in (scale-pop) at staggered times
+  for(let k=0;k<3;k++){
+    const sx = VW/2 + (k-1)*36, sy = 108;
+    if(r && k < stars){
+      const a = Math.max(0, Math.min(1, (rt - (0.35 + k*0.45)) / 0.35));
+      if(a > 0){
+        ctx.save(); ctx.globalAlpha = a; ctx.translate(sx, sy);
+        const sc = 1 + (1-a)*1.6; ctx.scale(sc, sc);
+        starFilled(ctx, 0, 0, 15, PAL.gold); ctx.restore(); ctx.globalAlpha = 1;
+      } else { starOutline(ctx, sx, sy, 15, PAL.wallD); }
+    } else { starOutline(ctx, sx, sy, 15, PAL.wallHi); }
+  }
+  // coin progress bar — fills to the coin % after the stars land
+  const barX = 34, barY = 176, barW = VW-68, barH = 16;
+  const prog = Math.max(0, Math.min(1, (rt - 1.7) / 1.0));
+  const cur = prog * pct;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sprite('ankh'), barX-20, barY-1, 16, 16);           // coin icon
+  frame(ctx, barX, barY, barW, barH);
+  ctx.fillStyle = PAL.goldD; ctx.fillRect(barX+2, barY+2, barW-4, barH-4);      // track
+  ctx.fillStyle = PAL.gold;  ctx.fillRect(barX+2, barY+2, Math.round((barW-4)*cur), barH-4);
+  const shown = r ? Math.round(prog * r.collected) : 0;
+  drawTextCentered(ctx, shown + ' / ' + (r ? r.total : 0), VW/2, barY+barH+8, PAL.goldHi, 1);
+  // continue
+  const b = { id:'continue', x: VW/2-52, y: 232, w:104, h:28 };
+  frameBtn(ctx, b, 'CONTINUE', 2);
+  return [b];
 }

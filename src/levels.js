@@ -1,6 +1,7 @@
 // =========== SANDSLIDE — level maps ===========
 // Legend:  # wall   (space)/. empty floor   o coin (hand-placed)   P start
 //          E exit(sarcophagus)   X mummy (horizontal patrol)   ^ spikes
+//          = laser gate (horizontal beam)   | laser gate (vertical beam)
 // Coins: if a map contains any 'o', those are the exact coins; otherwise the game
 // auto-places a coin on every slide-swept floor tile (see game.js parse()).
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
