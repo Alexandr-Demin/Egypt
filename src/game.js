@@ -2,11 +2,11 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706b';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706b';
-import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706b';
-import { getState, patch, reset } from './state.js?v=20260706b';
-import * as sound from './sound.js?v=20260706b';
+import { LEVELS } from './levels.js?v=20260706c';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706c';
+import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706c';
+import { getState, patch, reset } from './state.js?v=20260706c';
+import * as sound from './sound.js?v=20260706c';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -504,7 +504,9 @@ function drawEntrance(ctx, bx, by){
   const tI  = intro ? Math.min(1, G.intro/INTRO_DUR) : 1;
   const pyrA = intro ? (tI<0.5 ? 1 : 1-(tI-0.5)/0.5*0.86) : 0.14;   // 1 → ~0.14 ghost
   if(pyrA<=0.02) return;
-  const cx=Math.round(bx+G.startCell.x*TILE+8), base=Math.round(by+G.startCell.y*TILE+12);
+  // base sits on the floor line (bottom edge of the start tile) so the pyramid
+  // stands on the ground rather than floating above it.
+  const cx=Math.round(bx+G.startCell.x*TILE+8), base=Math.round(by+G.startCell.y*TILE+TILE);
   const steps=4, sh=6, baseHW=20, apex=base-steps*sh-3;
   ctx.save(); ctx.globalAlpha=pyrA;
   // stepped sandstone blocks (narrowing upward)
