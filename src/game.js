@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706d';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706d';
-import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706d';
-import { getState, patch, reset } from './state.js?v=20260706d';
-import * as sound from './sound.js?v=20260706d';
-import { generateLevel } from './levelgen.js?v=20260706d';
+import { LEVELS } from './levels.js?v=20260706e';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706e';
+import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706e';
+import { getState, patch, reset } from './state.js?v=20260706e';
+import * as sound from './sound.js?v=20260706e';
+import { generateLevel } from './levelgen.js?v=20260706e';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -92,6 +92,7 @@ function parse(def){
   const rows = def.map; G.levelName = def.name || '';
   G.ROWS = rows.length; G.COLS = Math.max(...rows.map(r=>r.length));
   G.grid = []; G.coins = new Set(); G.coinsLeft = 0; G.enemies = []; G.fvar = []; G.wvar = [];
+  const manualCoins = new Set();          // 'o' cells authored on the map (if any)
   for(let y=0;y<G.ROWS;y++){
     G.grid[y]=[]; G.fvar[y]=[]; G.wvar[y]=[];
     for(let x=0;x<G.COLS;x++){
@@ -100,6 +101,7 @@ function parse(def){
       if(ch==='#') t='wall';
       else if(ch==='^') t='spike';
       else if(ch==='E'){ t='exit'; G.exitPos={x,y}; }
+      else if(ch==='o') manualCoins.add(x+','+y);   // hand-placed coin (walkable floor)
       if(ch==='P') G.player={cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false};
       if(ch==='X') G.enemies.push({cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false,axis:'h',d:1});
       G.grid[y][x]=t;
@@ -107,9 +109,10 @@ function parse(def){
       G.wvar[y][x]=((x*7+y*3)%5===0)?(1+((x+y)%2)):0;
     }
   }
-  // Coins go ONLY on tiles a slide can actually pass through, so the placed
-  // count always equals the collectible count (no impossible coins).
-  for(const k of computeSwept()){
+  // Coins: if the map hand-places any ('o'), use exactly those; otherwise fall back
+  // to auto-placement on every slide-swept tile (existing/generated levels).
+  const source = manualCoins.size ? manualCoins : computeSwept();
+  for(const k of source){
     const [x,y]=k.split(',').map(Number);
     if(G.grid[y][x]==='floor' && !(x===G.player.cx && y===G.player.cy)){ G.coins.add(k); G.coinsLeft++; }
   }

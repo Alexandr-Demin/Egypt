@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SANDSLIDE — Level Editor</title>
+<title>SANDSLIDE — Редактор уровней</title>
 <style>
   :root{ --bg:#0c0406; --panel:#160a0a; --ink:#f3e6c8; --muted:#9a7d6b;
          --gold:#ffd21e; --line:#3a1414; --red:#ff4030; --green:#5bd66b; }
@@ -21,6 +21,8 @@
   button.on{ background:var(--gold); color:#1a0a0a; border-color:var(--gold); font-weight:700; }
   input[type=number]{ width:56px; background:#22100f; color:var(--ink);
     border:1px solid var(--line); border-radius:8px; padding:6px; }
+  input[type=text]{ background:#22100f; color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:6px; }
   label{ font-size:12px; color:var(--muted); }
   canvas{ background:#0a0603; border:1px solid var(--line); border-radius:8px;
     image-rendering:pixelated; touch-action:none; cursor:crosshair; }
@@ -28,55 +30,56 @@
     border-bottom:1px dashed var(--line); }
   .stat b{ font-weight:700; }
   .ok{ color:var(--green); } .bad{ color:var(--red); } .mut{ color:var(--muted); }
-  textarea{ width:340px; height:200px; background:#0a0603; color:var(--ink);
+  textarea{ width:340px; height:190px; background:#0a0603; color:var(--ink);
     border:1px solid var(--line); border-radius:8px; font-family:ui-monospace,Consolas,monospace;
     font-size:12px; padding:8px; resize:vertical; }
   .hint{ font-size:11px; color:var(--muted); line-height:1.5; }
-  .verdict{ font-size:14px; font-weight:800; letter-spacing:.06em; padding:6px 0; }
+  .verdict{ font-size:14px; font-weight:800; letter-spacing:.04em; padding:6px 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <!-- LEFT: tools -->
+  <!-- СЛЕВА: инструменты -->
   <div class="col">
-    <h1>SANDSLIDE · LEVEL EDITOR</h1>
+    <h1>SANDSLIDE · РЕДАКТОР УРОВНЕЙ</h1>
     <div class="panel col">
       <div class="row" id="palette"></div>
-      <div class="hint">Left-drag to paint · P/E are unique · right-drag = erase to floor</div>
+      <div class="hint">ЛКМ — рисовать · ПКМ — стереть в пол · P и E ставятся в одном экземпляре</div>
     </div>
     <div class="panel col">
       <div class="row">
-        <label>W</label><input type="number" id="w" min="5" max="40" value="13">
-        <label>H</label><input type="number" id="h" min="5" max="60" value="18">
-        <button id="resize">Resize</button>
-        <button id="border">Border</button>
-        <button id="clear">Clear</button>
+        <label>Ш</label><input type="number" id="w" min="5" max="40" value="13">
+        <label>В</label><input type="number" id="h" min="5" max="60" value="18">
+        <button id="resize">Применить размер</button>
+        <button id="border">Рамка</button>
+        <button id="clear">Очистить</button>
       </div>
       <div class="row">
-        <button id="chamber">+ Start chamber</button>
-        <button id="pillar">+ Pillar room</button>
-        <button id="donut">+ Donut room</button>
+        <button id="chamber">+ Стартовая комната</button>
+        <button id="pillar">+ Комната с колонной</button>
+        <button id="donut">+ Кольцевая комната</button>
       </div>
       <div class="row">
-        <label>Generate</label>
-        <label>seed</label><input type="number" id="seed" value="7" style="width:70px">
-        <label>diff</label><input type="number" id="diff" min="0" max="1" step="0.1" value="0.5">
-        <button id="gen">Generate</button>
+        <label>Генерация</label>
+        <label>сид</label><input type="number" id="seed" value="7" style="width:70px">
+        <label>сложн.</label><input type="number" id="diff" min="0" max="1" step="0.1" value="0.5">
+        <button id="gen">Сгенерировать</button>
       </div>
       <div class="row">
-        <label><input type="checkbox" id="showSol" checked> solution</label>
-        <label><input type="checkbox" id="showCoins" checked> coins</label>
-        <label><input type="checkbox" id="showTraps" checked> traps</label>
+        <label><input type="checkbox" id="showSol" checked> путь</label>
+        <label><input type="checkbox" id="showCoins" checked> авто-монеты</label>
+        <label><input type="checkbox" id="showTraps" checked> ловушки</label>
+        <button id="playPath">▶ Показать путь</button>
       </div>
     </div>
   </div>
 
-  <!-- CENTER: canvas -->
+  <!-- ЦЕНТР: холст -->
   <div class="col">
     <canvas id="cv"></canvas>
   </div>
 
-  <!-- RIGHT: validation + io -->
+  <!-- СПРАВА: проверка + обмен -->
   <div class="col">
     <div class="panel col" style="width:340px">
       <div class="verdict" id="verdict">—</div>
@@ -84,15 +87,15 @@
     </div>
     <div class="panel col">
       <div class="row">
-        <label>Name</label><input type="text" id="name" value="NEW LEVEL" style="flex:1;min-width:160px;background:#22100f;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px">
+        <label>Название</label><input type="text" id="name" value="НОВЫЙ УРОВЕНЬ" style="flex:1;min-width:150px">
       </div>
       <textarea id="io" spellcheck="false"></textarea>
       <div class="row">
-        <button id="export">Export ▸ box</button>
-        <button id="copy">Copy</button>
-        <button id="import">◂ Import from box</button>
+        <button id="export">Экспорт ▸ в поле</button>
+        <button id="copy">Копировать</button>
+        <button id="import">◂ Импорт из поля</button>
       </div>
-      <div class="hint">Export gives a paste-ready <code>const … = [ … ]</code> + LEVELS entry for src/levels.js.</div>
+      <div class="hint">Экспорт даёт готовый <code>const … = [ … ]</code> и строку для массива <code>LEVELS</code> в src/levels.js.</div>
     </div>
   </div>
 </div>
@@ -103,24 +106,25 @@ import { validateLevel, generateLevel } from '../src/levelgen.js';
 
 const CELL = 24;
 const TOOLS = [
-  { id:'#', name:'Wall',  col:'#d23a2a' },
-  { id:'.', name:'Floor', col:'#20100f' },
-  { id:'P', name:'Start', col:'#ffd21e' },
-  { id:'E', name:'Exit',  col:'#ff7a5c' },
-  { id:'X', name:'Mummy', col:'#efe2cf' },
-  { id:'^', name:'Spike', col:'#e0d0c0' },
+  { id:'#', name:'Стена' },
+  { id:'.', name:'Пол' },
+  { id:'o', name:'Монета' },
+  { id:'P', name:'Старт' },
+  { id:'E', name:'Выход' },
+  { id:'X', name:'Мумия' },
+  { id:'^', name:'Шипы' },
 ];
 let W = 13, H = 18, tool = '#';
 let grid = newGrid(W, H);
+let anim = null;                              // анимация «показать путь»
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
 
-// ---------- grid ----------
+// ---------- сетка ----------
 function newGrid(w, h){
-  const g = Array.from({length:h}, (_,y)=>Array.from({length:w},(_,x)=>
+  return Array.from({length:h}, (_,y)=>Array.from({length:w},(_,x)=>
     (x===0||y===0||x===w-1||y===h-1) ? '#' : '.'));
-  return g;
 }
 function rows(){ return grid.map(r=>r.join('')); }
 function setCell(x,y,ch){
@@ -129,9 +133,9 @@ function setCell(x,y,ch){
   grid[y][x]=ch;
 }
 
-// ---------- local helpers (match game slide semantics) ----------
+// ---------- слайд-логика (как в игре) ----------
 const isWall=(g,x,y)=> y<0||x<0||y>=g.length||x>=g[0].length || g[y][x]==='#';
-function sweptCoins(g){
+function sweptSet(g){                          // все клетки, через которые проходит любой слайд
   const R=g.length,C=g[0].length; let P=null;
   for(let y=0;y<R;y++)for(let x=0;x<C;x++) if(g[y][x]==='P')P={x,y};
   if(!P) return new Set();
@@ -141,16 +145,26 @@ function sweptCoins(g){
     for(const [dx,dy] of D){ let nx=x,ny=y;
       while(!isWall(g,nx+dx,ny+dy)){ nx+=dx; ny+=dy; sw.add(key(nx,ny)); if(g[ny][nx]==='E') break; }
       const k=key(nx,ny); if((nx!==x||ny!==y)&&!seen.has(k)){ seen.add(k); q.push([nx,ny]); } } }
-  const coins=new Set();
-  for(const k of sw){ const [x,y]=k.split(',').map(Number);
-    if(g[y][x]==='.'&&!(x===P.x&&y===P.y)) coins.add(k); }
-  return coins;
+  return sw;
 }
+// монеты: если на карте есть 'o' — это они (ручной режим); иначе авто по swept-полу
+function coinInfo(g){
+  const manual=[]; for(let y=0;y<g.length;y++)for(let x=0;x<g[0].length;x++) if(g[y][x]==='o') manual.push(x+','+y);
+  const sw=sweptSet(g);
+  if(manual.length){
+    const reach = manual.filter(k=>sw.has(k));
+    return { mode:'manual', cells:manual, reachable:new Set(reach), total:manual.length, collectible:reach.length };
+  }
+  let P=null; for(let y=0;y<g.length;y++)for(let x=0;x<g[0].length;x++) if(g[y][x]==='P')P={x,y};
+  const auto=[...sw].filter(k=>{ const [x,y]=k.split(',').map(Number);
+    return g[y][x]==='.' && !(P&&x===P.x&&y===P.y); });
+  return { mode:'auto', cells:auto, reachable:new Set(auto), total:auto.length, collectible:auto.length };
+}
+// оптимальный путь: точки-остановки от старта до выхода + направления
 function solvePath(g){
-  const R=g.length,C=g[0].length; let P=null;
-  for(let y=0;y<R;y++)for(let x=0;x<C;x++) if(g[y][x]==='P')P={x,y};
-  if(!P) return null;
-  const at=(x,y)=>isWall(g,x,y)?'#':g[y][x];
+  const R=g.length,C=g[0].length; let P=null,E=null;
+  for(let y=0;y<R;y++)for(let x=0;x<C;x++){ if(g[y][x]==='P')P={x,y}; if(g[y][x]==='E')E={x,y}; }
+  if(!P||!E) return null;
   const D={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]};
   const slide=(x,y,[dx,dy])=>{ let cx=x,cy=y,m=false;
     while(!isWall(g,cx+dx,cy+dy)){ cx+=dx; cy+=dy; m=true; if(g[cy][cx]==='E') return {win:1}; }
@@ -158,70 +172,108 @@ function solvePath(g){
   const key=(x,y)=>x+','+y, prev=new Map([[key(P.x,P.y),null]]), q=[[P.x,P.y]];
   while(q.length){ const [x,y]=q.shift();
     for(const d in D){ const s=slide(x,y,D[d]); if(!s) continue;
-      if(s.win){ const seq=[{x,y,d}]; let k=key(x,y);
-        while(prev.get(k)){ const p=prev.get(k); seq.unshift({x:p.x,y:p.y,d:p.d}); k=key(p.x,p.y); }
-        return seq; }
+      if(s.win){ const pts=[{x:E.x,y:E.y}], dirs=[]; let cx=x,cy=y,dd=d;
+        while(true){ pts.unshift({x:cx,y:cy}); dirs.unshift(dd);
+          const p=prev.get(key(cx,cy)); if(!p) break; cx=p.x; cy=p.y; dd=p.d; }
+        return { points:pts, dirs }; }
       const nk=key(s.x,s.y); if(!prev.has(nk)){ prev.set(nk,{x,y,d}); q.push([s.x,s.y]); } } }
   return null;
 }
 
-// ---------- render ----------
+// ---------- отрисовка ----------
+const cx = c => c*CELL + CELL/2;
+function drawArrow(ax, ay, d){
+  const s=5, m={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]}[d]; if(!m) return;
+  const [dx,dy]=m;
+  ctx.beginPath();
+  ctx.moveTo(ax+dx*s, ay+dy*s);
+  ctx.lineTo(ax-dx*s - dy*s, ay-dy*s - dx*s);
+  ctx.lineTo(ax-dx*s + dy*s, ay-dy*s + dx*s);
+  ctx.closePath(); ctx.fill();
+}
+function drawPath(sol, progress){
+  if(!sol) return;
+  const P=sol.points;
+  ctx.strokeStyle='rgba(91,214,107,0.9)'; ctx.lineWidth=2; ctx.lineJoin='round';
+  // сколько сегментов и с каким дробным продвижением рисуем
+  const segMax = progress ? progress.seg : P.length-1;
+  const frac   = progress ? progress.t   : 1;
+  ctx.beginPath(); ctx.moveTo(cx(P[0].x), cx(P[0].y));
+  for(let i=1;i<=Math.min(segMax, P.length-1); i++) ctx.lineTo(cx(P[i].x), cx(P[i].y));
+  let head=null;
+  if(progress && segMax < P.length-1){
+    const a=P[segMax], b=P[segMax+1];
+    const hx=cx(a.x)+(cx(b.x)-cx(a.x))*frac, hy=cx(a.y)+(cx(b.y)-cx(a.y))*frac;
+    ctx.lineTo(hx,hy); head={x:hx,y:hy};
+  }
+  ctx.stroke();
+  // стрелки направлений на каждой пройденной остановке
+  ctx.fillStyle='rgba(91,214,107,0.95)';
+  for(let i=0;i<Math.min(segMax, sol.dirs.length); i++) drawArrow(cx(P[i+1].x), cx(P[i+1].y), sol.dirs[i]);
+  // номера шагов (в статике)
+  if(!progress){ ctx.fillStyle=PAL.goldHi; ctx.font='9px monospace'; ctx.textAlign='center';
+    for(let i=0;i<sol.dirs.length;i++) ctx.fillText(String(i+1), cx(P[i].x)+6, cx(P[i].y)-5); }
+  // движущийся маркер
+  if(head){ ctx.fillStyle=PAL.gold; ctx.beginPath(); ctx.arc(head.x, head.y, 4, 0, 7); ctx.fill(); }
+}
+
 function render(){
   cv.width = W*CELL; cv.height = H*CELL;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = false; ctx.textAlign='start';
   const v = validateLevel(rows());
-  const coins = $('showCoins').checked ? sweptCoins(grid) : new Set();
+  const ci = coinInfo(grid);
   const traps = ($('showTraps').checked && v.traps) ? new Set(v.traps) : new Set();
 
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
     const px=x*CELL, py=y*CELL, ch=grid[y][x];
-    // base
     if(ch==='#'){ ctx.fillStyle='#180707'; ctx.fillRect(px,py,CELL,CELL);
       ctx.fillStyle='#3a1010'; ctx.fillRect(px,py,CELL,2); ctx.fillRect(px,py,2,CELL);
     } else { ctx.fillStyle=PAL.bg; ctx.fillRect(px,py,CELL,CELL); }
-    // grid line
     ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.strokeRect(px+0.5,py+0.5,CELL-1,CELL-1);
-    // trap highlight
     if(traps.has(x+','+y)){ ctx.fillStyle='rgba(255,64,48,0.42)'; ctx.fillRect(px,py,CELL,CELL); }
-    // coin preview
-    if(coins.has(x+','+y)){ ctx.fillStyle=PAL.gold; ctx.beginPath();
-      ctx.arc(px+CELL/2,py+CELL/2,2.2,0,7); ctx.fill(); }
-    // entities via real sprites
-    const spr = ch==='P'?'anubis' : ch==='E'?'exit' : ch==='X'?'mummy' : ch==='^'?'spikes' : null;
+    // авто-превью монет (только когда монеты не расставлены вручную)
+    if(ci.mode==='auto' && $('showCoins').checked && ci.reachable.has(x+','+y)){
+      ctx.fillStyle='rgba(255,210,30,0.5)'; ctx.beginPath(); ctx.arc(px+CELL/2,py+CELL/2,2,0,7); ctx.fill();
+    }
+    // объекты настоящими спрайтами
+    const spr = ch==='P'?'anubis' : ch==='E'?'exit' : ch==='X'?'mummy' : ch==='^'?'spikes' : ch==='o'?'ankh' : null;
     if(spr) ctx.drawImage(sprite(spr), px+2, py+2, CELL-4, CELL-4);
+    // недостижимая ручная монета — красное кольцо-предупреждение
+    if(ch==='o' && !ci.reachable.has(x+','+y)){
+      ctx.strokeStyle=PAL.red; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(px+CELL/2,py+CELL/2,7,0,7); ctx.stroke();
+    }
   }
-  // solution overlay
-  if($('showSol').checked){ const path=solvePath(grid);
-    if(path){ ctx.strokeStyle='rgba(91,214,107,0.85)'; ctx.lineWidth=2; ctx.beginPath();
-      const cx=(c)=>c*CELL+CELL/2;
-      for(let i=0;i<path.length;i++){ const p=path[i];
-        if(i===0) ctx.moveTo(cx(p.x),cx(p.y)); else ctx.lineTo(cx(p.x),cx(p.y)); }
-      ctx.stroke(); } }
-  paintPanel(v, coins.size);
+  // путь (статичный или анимированный)
+  if(anim){ drawPath(anim.sol, { seg:anim.seg, t:anim.t }); }
+  else if($('showSol').checked){ drawPath(solvePath(grid), null); }
+
+  paintPanel(v, ci);
 }
-function paintPanel(v, coinCount){
-  const path = solvePath(grid);
+function paintPanel(v, ci){
+  const sol = solvePath(grid);
+  const good = v.ok && !(ci.mode==='manual' && ci.collectible<ci.total);
   const verdict = $('verdict');
-  const good = v.ok;
-  verdict.textContent = good ? '✔ VALID LEVEL' : '✘ NOT SHIPPABLE';
+  verdict.textContent = good ? '✔ УРОВЕНЬ ГОДЕН' : '✘ НЕЛЬЗЯ ОТГРУЖАТЬ';
   verdict.className = 'verdict ' + (good ? 'ok' : 'bad');
-  const line = (label, val, ok) =>
-    `<div class="stat"><span class="mut">${label}</span><b class="${ok?'ok':'bad'}">${val}</b></div>`;
-  const neutral = (label,val)=>`<div class="stat"><span class="mut">${label}</span><b>${val}</b></div>`;
+  const line = (l,val,ok)=>`<div class="stat"><span class="mut">${l}</span><b class="${ok?'ok':'bad'}">${val}</b></div>`;
+  const neu  = (l,val)=>`<div class="stat"><span class="mut">${l}</span><b>${val}</b></div>`;
+  const coinLabel = ci.mode==='manual' ? 'Монеты (собрать / всего)' : 'Монеты (авто)';
+  const coinVal   = ci.mode==='manual' ? `${ci.collectible} / ${ci.total}` : ci.total;
+  const coinOk    = ci.mode!=='manual' || ci.collectible===ci.total;
   $('stats').innerHTML =
-    line('Start / Exit', (v.hasP?'P':'—')+' / '+(v.hasE?'E':'—'), v.hasP&&v.hasE) +
-    line('Uniform width', v.widthsOk?'yes':'no', v.widthsOk) +
-    line('Solvable', v.solvable?'yes':'no', v.solvable) +
-    line('Dead-end traps', v.traps ? v.traps.length : '—', (v.traps&&v.traps.length===0)) +
-    line('Pyramid grounded', v.grounded?'yes':'no', v.grounded) +
-    neutral('Enemies', v.enemies) +
-    (v.enemies ? line('Avoidable (go-around)', v.enemyAvoidable?'yes':'no', v.enemyAvoidable) : '') +
-    neutral('Min swipes', path ? path.length : (v.minSwipes ?? '—')) +
-    neutral('Coins (auto)', coinCount) +
-    neutral('Size', v.rows+' × '+v.cols);
+    line('Старт / Выход', (v.hasP?'P':'—')+' / '+(v.hasE?'E':'—'), v.hasP&&v.hasE) +
+    line('Одинаковая ширина', v.widthsOk?'да':'нет', v.widthsOk) +
+    line('Проходимо', v.solvable?'да':'нет', v.solvable) +
+    line('Тупики', v.traps ? v.traps.length : '—', (v.traps&&v.traps.length===0)) +
+    line('Пирамида на полу', v.grounded?'да':'нет', v.grounded) +
+    neu('Врагов', v.enemies) +
+    (v.enemies ? line('Обходятся', v.enemyAvoidable?'да':'нет', v.enemyAvoidable) : '') +
+    line(coinLabel, coinVal, coinOk) +
+    neu('Свайпов', sol ? sol.dirs.length : (v.minSwipes ?? '—')) +
+    neu('Размер', v.rows+' × '+v.cols);
 }
 
-// ---------- palette ----------
+// ---------- палитра ----------
 const pal = $('palette');
 TOOLS.forEach(t=>{ const b=document.createElement('button');
   b.textContent = t.name + '  ' + t.id; b.dataset.id=t.id;
@@ -229,27 +281,25 @@ TOOLS.forEach(t=>{ const b=document.createElement('button');
   if(t.id==='#') b.classList.add('on');
   pal.appendChild(b); });
 
-// ---------- painting ----------
+// ---------- рисование ----------
 let painting=false, eraseMode=false;
 function cellAt(ev){ const r=cv.getBoundingClientRect();
   return { x: Math.floor((ev.clientX-r.left)/(r.width/W)), y: Math.floor((ev.clientY-r.top)/(r.height/H)) }; }
 cv.addEventListener('contextmenu', e=>e.preventDefault());
-cv.addEventListener('pointerdown', e=>{ painting=true; eraseMode = e.button===2;
+cv.addEventListener('pointerdown', e=>{ anim=null; painting=true; eraseMode = e.button===2;
   const {x,y}=cellAt(e); setCell(x,y, eraseMode?'.':tool); render(); });
 cv.addEventListener('pointermove', e=>{ if(!painting) return;
   const {x,y}=cellAt(e); setCell(x,y, eraseMode?'.':tool); render(); });
-addEventListener('pointerup', ()=>{ painting=false; save(); });
+addEventListener('pointerup', ()=>{ if(painting){ painting=false; save(); } });
 
-// ---------- toolbar actions ----------
-$('resize').onclick = ()=>{ const nw=+$('w').value, nh=+$('h').value;
-  const ng=newGrid(nw,nh);
+// ---------- кнопки ----------
+$('resize').onclick = ()=>{ const nw=+$('w').value, nh=+$('h').value; const ng=newGrid(nw,nh);
   for(let y=0;y<Math.min(H,nh);y++) for(let x=0;x<Math.min(W,nw);x++) ng[y][x]=grid[y][x];
   W=nw; H=nh; grid=ng; render(); save(); };
 $('border').onclick = ()=>{ for(let x=0;x<W;x++){ grid[0][x]='#'; grid[H-1][x]='#'; }
   for(let y=0;y<H;y++){ grid[y][0]='#'; grid[y][W-1]='#'; } render(); save(); };
-$('clear').onclick = ()=>{ grid=newGrid(W,H); render(); save(); };
+$('clear').onclick = ()=>{ anim=null; grid=newGrid(W,H); render(); save(); };
 
-// stamps (write ASCII blocks into the grid, top-anchored, centred horizontally)
 function stampRows(block){ const y0=Math.max(1,H-block.length-1), x0=Math.max(0,((W-block[0].length)/2)|0);
   for(let j=0;j<block.length;j++) for(let i=0;i<block[j].length;i++){
     const ch=block[j][i]; if(ch!==' ') setCell(x0+i, y0+j, ch); } render(); save(); }
@@ -258,34 +308,54 @@ $('pillar').onclick  = ()=> stampRows(['#...........#','#....###....#','#....###
 $('donut').onclick   = ()=> stampRows(['#...........#','#...#####...#','#...#####...#','#...#####...#','#...........#']);
 
 $('gen').onclick = ()=>{ const lvl = generateLevel({ seed:+$('seed').value|0, difficulty:+$('diff').value });
-  if(!lvl){ alert('generation failed'); return; }
-  grid = lvl.rows.map(r=>r.split('')); H=grid.length; W=grid[0].length;
+  if(!lvl){ alert('Не удалось сгенерировать'); return; }
+  anim=null; grid = lvl.rows.map(r=>r.split('')); H=grid.length; W=grid[0].length;
   $('w').value=W; $('h').value=H; if(lvl.name) $('name').value=lvl.name; render(); save(); };
 
 ['showSol','showCoins','showTraps'].forEach(id=>$(id).addEventListener('change',render));
 
-// ---------- import / export ----------
+// ---------- «показать путь» (анимация) ----------
+$('playPath').onclick = ()=>{
+  const sol = solvePath(grid);
+  if(!sol){ alert('Нет решения — путь не построить'); return; }
+  anim = { sol, seg:0, t:0, last:performance.now() };
+  requestAnimationFrame(stepAnim);
+};
+function stepAnim(now){
+  if(!anim) return;
+  const dt=(now-anim.last)/1000; anim.last=now;
+  anim.t += dt/0.16;                                     // ~0.16с на сегмент
+  while(anim.t>=1 && anim.seg < anim.sol.points.length-2){ anim.t-=1; anim.seg++; }
+  const finished = anim.seg>=anim.sol.points.length-2 && anim.t>=1;
+  if(finished) anim.t=1;
+  render();
+  if(!finished) requestAnimationFrame(stepAnim);
+  else setTimeout(()=>{ anim=null; render(); }, 700);   // подержать и убрать
+}
+
+// ---------- импорт / экспорт ----------
 function ident(){ return (($('name').value||'LEVEL').toUpperCase().replace(/[^A-Z0-9]+/g,'_')).replace(/^_|_$/g,'') || 'LEVEL'; }
 $('export').onclick = ()=>{ const id=ident();
   const body = rows().map(r=>`  '${r}',`).join('\n');
-  $('io').value = `const ${id} = [\n${body}\n];\n\n// in the LEVELS array:\n  { name: '${$('name').value}', map: ${id} },`;
+  $('io').value = `const ${id} = [\n${body}\n];\n\n// в массив LEVELS:\n  { name: '${$('name').value}', map: ${id} },`;
 };
-$('copy').onclick = async ()=>{ try{ await navigator.clipboard.writeText($('io').value); $('copy').textContent='Copied!';
-  setTimeout(()=>$('copy').textContent='Copy',900);}catch(e){} };
-$('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].map(x=>x[1]).filter(s=>/^[#.PEX^ ]+$/.test(s));
-  if(!m.length){ alert('no rows found in box'); return; }
-  const w=Math.max(...m.map(r=>r.length)); grid=m.map(r=>(r+'#'.repeat(w)).slice(0,w).split(''));
-  H=grid.length; W=w; $('w').value=W; $('h').value=H; render(); save(); };
+$('copy').onclick = async ()=>{ try{ await navigator.clipboard.writeText($('io').value);
+  $('copy').textContent='Скопировано!'; setTimeout(()=>$('copy').textContent='Копировать',900);}catch(e){} };
+$('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].map(x=>x[1]).filter(s=>/^[#.PEXo^ ]+$/.test(s));
+  if(!m.length){ alert('В поле не найдено строк уровня'); return; }
+  const w=Math.max(...m.map(r=>r.length)); anim=null;
+  grid=m.map(r=>(r+'#'.repeat(w)).slice(0,w).split('')); H=grid.length; W=w;
+  $('w').value=W; $('h').value=H; render(); save(); };
 
-// ---------- persistence (separate key; never touches the game save) ----------
+// ---------- сохранение черновика (отдельный ключ; сейв игры не трогаем) ----------
 const KEY='sandslide.editor.wip';
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify({W,H,grid,name:$('name').value})); }catch(e){} }
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null');
   if(s&&s.grid){ W=s.W;H=s.H;grid=s.grid; $('w').value=W;$('h').value=H; if(s.name)$('name').value=s.name; } }catch(e){} }
 
 load(); render();
-// tiny hook for automated checks
-window.__editor = { rows, validate:()=>validateLevel(rows()), setGrid:g=>{grid=g.map(r=>r.split(''));H=grid.length;W=grid[0].length;render();} };
+window.__editor = { rows, validate:()=>validateLevel(rows()), coinInfo:()=>coinInfo(grid),
+  solvePath:()=>solvePath(grid), setGrid:g=>{anim=null;grid=g.map(r=>r.split(''));H=grid.length;W=grid[0].length;render();} };
 </script>
 </body>
 </html>
