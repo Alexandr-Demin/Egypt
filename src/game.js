@@ -1,12 +1,12 @@
 // =========== SANDSLIDE — game core (v0.1) ===========
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
-// browser upscales (pixelated). Scenes: title → play(1 level) → win/gameover.
+// browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706a';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706a';
-import { renderTitle, renderMenu, renderWin, renderGameover } from './screens.js?v=20260706a';
-import { getState, patch, reset } from './state.js?v=20260706a';
-import * as sound from './sound.js?v=20260706a';
+import { LEVELS } from './levels.js?v=20260706b';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706b';
+import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706b';
+import { getState, patch, reset } from './state.js?v=20260706b';
+import * as sound from './sound.js?v=20260706b';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -58,7 +58,7 @@ function loop(ts){
 function tick(dt){ update(dt); render(); }
 
 // ---------------- run / level flow ----------------
-function startRun(){ G.score = 0; G.lives = 3; loadLevel(0); }
+function startRun(i=0){ G.score = 0; G.lives = 3; G.runStart = i; loadLevel(i); }
 
 function loadLevel(i){
   G.levelIndex = i; G.dead = false; G.dir = null; G.lastCell = '';
@@ -179,7 +179,9 @@ function handleTap(vx,vy){
 }
 function onButton(id){
   sound.play('tap');
-  if(id==='play'||id==='retry') transition(startRun);
+  if(id==='play') transition(()=>{ G.scene='select'; });            // PLAY → level select
+  else if(id==='retry') transition(()=>startRun(G.runStart||0));     // replay the chosen level
+  else if(id && id.startsWith('lvl')) transition(()=>startRun(+id.slice(3)));  // pick a level card
   else if(id==='menu') transition(()=>{ G.scene='title'; });
   else if(id==='settings') transition(()=>{ G.scene='menu'; });
   else if(id==='sound') sound.setEnabled(!sound.isEnabled());          // toggle, stay on menu
@@ -314,6 +316,7 @@ function render(){
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0}); }
+  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:LEVELS.length}); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }

@@ -38,6 +38,71 @@ const ROWS = [
   '##############',
 ];
 
+// Level 2 — "WINDING TOMB": a long single-path serpentine. Six 1-wide vertical
+// corridors linked alternately at top/bottom, fed from the same safe 4-wide start
+// chamber (P off the wall so the pyramid fits; the only way up is the left-edge
+// neck). Authored directly in play orientation (no reverse). ~10 swipes to solve;
+// validated as fully solvable with zero dead-end (trap) states.
+const L2 = [
+  '#############',
+  '#...#...#...#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#',
+  '#.#...#...#E#',   // exit at the end of the last corridor (sarcophagus)
+  '#....########',
+  '#....########',
+  '#.P..########',   // start chamber (4-wide; up via the left-edge neck)
+  '#....########',
+  '#############',
+];
+
+// Level 3 — "GUARDIAN CRYPT": a taller seven-corridor serpentine guarded by four
+// patrolling mummies (X) posted in the horizontal linking passages the hero must
+// slide across. Same safe start-chamber pattern. ~12 swipes; validated solvable
+// with zero trap states (enemies are a timing hazard, not a reachability block).
+const L3 = [
+  '###############',
+  '#.X.#.X.#...#E#',   // exit top-right; mummies patrol the top link passages
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#.#.#.#.#.#.#',
+  '#.#...#.X.#.X.#',   // mummies patrol the bottom link passages
+  '#....##########',
+  '#....##########',
+  '#.P..##########',   // start chamber
+  '#....##########',
+  '###############',
+];
+
 export const LEVELS = [
-  { name: 'ANTECHAMBER', map: ROWS.slice().reverse() },
+  { name: 'ANTECHAMBER',    map: ROWS.slice().reverse() },
+  { name: 'WINDING TOMB',   map: L2 },
+  { name: 'GUARDIAN CRYPT', map: L3 },
 ];

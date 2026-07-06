@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706a';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706b';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -46,6 +46,45 @@ function gear(ctx, cx, cy){
   ctx.fillRect(cx-7,cy-1,3,2); ctx.fillRect(cx+4,cy-1,3,2);   // left/right teeth
   ctx.beginPath(); ctx.arc(cx,cy,5,0,7); ctx.fill();          // body
   ctx.fillStyle = PAL.bg; ctx.beginPath(); ctx.arc(cx,cy,2,0,7); ctx.fill(); // hole
+}
+
+// Empty (unfilled) 5-point star outline centred on (cx,cy). Used on the level
+// cards — hollow now; a fill can light up per earned rating later.
+function starOutline(ctx, cx, cy, r, col){
+  ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath();
+  for(let i=0;i<10;i++){ const a=-Math.PI/2 + i*Math.PI/5, rr=(i%2)?r*0.42:r;
+    const px=cx+Math.cos(a)*rr, py=cy+Math.sin(a)*rr; i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+  ctx.closePath(); ctx.stroke();
+}
+
+// Level-select: a 2×5 grid of big cards, each with its number and three hollow
+// stars. The first `unlocked` cards are selectable (return button rects); the
+// rest are drawn semi-transparent and are not tappable.
+export function renderSelect(ctx, VW, VH, t, data){
+  const unlocked = (data && data.unlocked) || 0;
+  const TOTAL = 10, COLS = 2, GAP = 8, MX = 14, TOP = 34, PITCH = 47, CH = 40;
+  const CW = Math.floor((VW - MX*2 - GAP) / COLS);
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);
+  drawTextCentered(ctx, 'LEVELS', VW/2, 14, PAL.gold, 2);
+  const btns = [];
+  for(let i=0;i<TOTAL;i++){
+    const col = i % COLS, row = (i / COLS) | 0;
+    const x = MX + col*(CW+GAP), y = TOP + row*PITCH;
+    const avail = i < unlocked;
+    ctx.save();
+    ctx.globalAlpha = avail ? 1 : 0.3;
+    frame(ctx, x, y, CW, CH);
+    drawTextCentered(ctx, String(i+1), x+CW/2, y+5, avail?PAL.gold:PAL.wallHi, 3);
+    const scx = x+CW/2, sy = y+CH-9;
+    for(let s=-1;s<=1;s++) starOutline(ctx, scx+s*13, sy, 5, avail?PAL.goldHi:PAL.wallHi);
+    ctx.restore();
+    if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
+  }
+  const back = { id:'menu', x:VW/2-30, y:266, w:60, h:13 };
+  frameBtn(ctx, back, 'BACK', 1);
+  btns.push(back);
+  return btns;
 }
 
 export function renderTitle(ctx, VW, VH, t, data){
