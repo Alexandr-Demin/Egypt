@@ -123,17 +123,17 @@ const L3 = [
 ];
 
 // Hand-authored in the editor: a long winding labyrinth with hand-placed coins.
-// Validated: solvable, 0 traps, P grounded, all 87 coins reachable, ~36 swipes.
+// Validated: solvable, 0 traps, P grounded, all 128 coins reachable, ~36 swipes.
 const HOLLOW_LABYRINTH = [
   '#############',
   '#E#ooooooooo#',
   '#o#o#######o#',
   '#o#o#######o.',
   '#ooo######oo#',
-  '#..#######o##',
-  '#########.o##',
+  '#oo#######o##',
   '##########o##',
-  '.oooooooooo##',
+  '##########o##',
+  '#oooooooooo##',
   '#o###########',
   '#ooooo#######',
   '#####ooooo###',
@@ -144,7 +144,7 @@ const HOLLOW_LABYRINTH = [
   '######o######',
   '######oooooo#',
   '###########o#',
-  '##.########o#',
+  '###########o#',
   '###########o#',
   '##oooooooooo#',
   '##o##########',
@@ -154,16 +154,16 @@ const HOLLOW_LABYRINTH = [
   '##oooo#######',
   '#####.oo#####',
   '#######o#####',
-  '###....o#####',
-  '....#########',
-  '.############',
-  '.##.........#',
-  '.##.######..#',
-  '.##.####....#',
-  '....####.####',
-  '########....#',
-  '###########.#',
-  '########P...#',
+  '###ooooo#####',
+  '#ooo#########',
+  '#o###########',
+  '#o#ooooooooo#',
+  '#o#o######.o#',
+  '#o#o####oooo#',
+  '#ooo####o####',
+  '########oooo#',
+  '###########o#',
+  '########Pooo#',
   '#############',
 ];
 
