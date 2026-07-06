@@ -1,8 +1,9 @@
 {
-  "name": "egypt",
+  "name": "sandslide",
   "version": "0.1.0",
   "private": true,
-  "description": "EGYPT — PWA wrapped in Capacitor for Android",
+  "type": "module",
+  "description": "SANDSLIDE — PWA wrapped in Capacitor for Android",
   "scripts": {
     "sync:web": "node ./scripts/sync-web.mjs",
     "cap:sync": "npm run sync:web && cap sync android",
