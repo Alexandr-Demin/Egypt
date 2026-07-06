@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706c';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706d';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -96,16 +96,17 @@ export function renderTitle(ctx, VW, VH, t, data){
   if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 90, PAL.goldHi, 1);
   // bobbing Anubis hero
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(sprite('anubis'), VW/2-16, 110 + Math.sin(t*2)*3, 32, 32);
-  // PLAY button (dotted contour outline)
-  const b = { id:'play', x: VW/2-46, y: 198, w:92, h:28 };
+  ctx.drawImage(sprite('anubis'), VW/2-16, 108 + Math.sin(t*2)*3, 32, 32);
+  // PLAY (story levels) + ENDLESS (generated descent) buttons
+  const b = { id:'play',    x: VW/2-46, y: 168, w:92, h:26 };
+  const e = { id:'endless', x: VW/2-46, y: 200, w:92, h:26 };
   frameBtn(ctx, b, 'PLAY', 2);
-  // blink prompt
-  if(Math.sin(t*3) > -0.2) drawTextCentered(ctx, 'TAP TO START', VW/2, 252, PAL.goldHi, 1);
+  frameBtn(ctx, e, 'ENDLESS', 2);
+  if(data && data.bestDepth) drawTextCentered(ctx, 'DEPTH  '+data.bestDepth, VW/2, 236, PAL.wallEdge, 1);
   // settings (cog) button, top-right
   const s = { id:'settings', x: VW-28, y: 14, w:22, h:22 };
   gear(ctx, s.x+11, s.y+11);
-  return [b, s];
+  return [b, e, s];
 }
 
 export function renderMenu(ctx, VW, VH, t, data){
@@ -133,8 +134,14 @@ function outcome(ctx, VW, VH, t, spr, glowCol, title, titleCol, data){
   ctx.beginPath(); ctx.arc(VW/2, 92, 44, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = false; ctx.drawImage(sprite(spr), VW/2-24, 68, 48, 48);
   drawTextCentered(ctx, title, VW/2, 146, titleCol, 3);
-  drawTextCentered(ctx, 'GOLD  '+(data?.score||0), VW/2, 184, PAL.goldHi, 2);
-  if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 208, PAL.wallEdge, 1);
+  if(data && data.depth != null){                          // endless run summary
+    drawTextCentered(ctx, 'DEPTH  '+data.depth, VW/2, 178, PAL.gold, 2);
+    drawTextCentered(ctx, 'GOLD  '+(data.score||0), VW/2, 200, PAL.goldHi, 1);
+    if(data.bestDepth) drawTextCentered(ctx, 'BEST DEPTH  '+data.bestDepth, VW/2, 220, PAL.wallEdge, 1);
+  } else {
+    drawTextCentered(ctx, 'GOLD  '+(data?.score||0), VW/2, 184, PAL.goldHi, 2);
+    if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 208, PAL.wallEdge, 1);
+  }
   const b1 = { id:'retry', x: VW/2-72, y: 240, w:68, h:26 };
   const b2 = { id:'menu',  x: VW/2+4,  y: 240, w:68, h:26 };
   frameBtn(ctx, b1, 'RETRY', 1);

@@ -2,11 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706c';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706c';
-import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706c';
-import { getState, patch, reset } from './state.js?v=20260706c';
-import * as sound from './sound.js?v=20260706c';
+import { LEVELS } from './levels.js?v=20260706d';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706d';
+import { renderTitle, renderMenu, renderSelect, renderWin, renderGameover } from './screens.js?v=20260706d';
+import { getState, patch, reset } from './state.js?v=20260706d';
+import * as sound from './sound.js?v=20260706d';
+import { generateLevel } from './levelgen.js?v=20260706d';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -21,7 +22,8 @@ const INTRO_DUR = 1.8;   // level-entrance: pyramid → door opens → hero appe
 
 const G = {
   canvas:null, ctx:null, scene:'title', t:0, last:0,
-  levelIndex:0, score:0, lives:3,
+  levelIndex:0, score:0, lives:3, levelName:'',
+  endless:false, depth:1, runSeed:1, curMap:null, curName:'',
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, exitPos:{x:0,y:0},
   boardX:0, boardY:0, fvar:[], wvar:[],
   player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
@@ -42,7 +44,7 @@ export function startGame(canvas){
   window.dbg = {
     get scene(){return G.scene;}, get level(){return G.levelIndex;},
     get lives(){return G.lives;}, get score(){return G.score;},
-    get coinsLeft(){return G.coinsLeft;},
+    get coinsLeft(){return G.coinsLeft;}, get depth(){return G.depth;}, get endless(){return G.endless;},
     press:setDir, tap:onButton, buttons:()=>G.buttons.map(b=>b.id),
     pos:()=>G.player?{x:G.player.cx,y:G.player.cy}:null, exit:()=>({...G.exitPos}),
     teleport:(x,y)=>{ const p=G.player; if(p){ p.cx=x;p.cy=y;p.fx=x;p.fy=y;p.tx=x;p.ty=y;p.moving=false; G.lastCell=''; } },
@@ -58,7 +60,7 @@ function loop(ts){
 function tick(dt){ update(dt); render(); }
 
 // ---------------- run / level flow ----------------
-function startRun(i=0){ G.score = 0; G.lives = 3; G.runStart = i; loadLevel(i); }
+function startRun(i=0){ G.endless = false; G.score = 0; G.lives = 3; G.runStart = i; loadLevel(i); }
 
 function loadLevel(i){
   G.levelIndex = i; G.dead = false; G.dir = null; G.lastCell = '';
@@ -67,8 +69,27 @@ function loadLevel(i){
   G.scene = 'play';
 }
 
+// ---- endless: procedurally generated descent, difficulty ramps with depth ----
+function startEndless(){
+  G.endless = true; G.score = 0; G.depth = 1;
+  G.runSeed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0;
+  loadEndlessDepth();
+}
+function loadEndlessDepth(){
+  const difficulty = Math.min(1, (G.depth - 1) / 12);
+  const seed = (G.runSeed + G.depth * 101) >>> 0;
+  const lvl = generateLevel({ seed, difficulty });
+  const rows = lvl ? lvl.rows : LEVELS[0].map;          // fallback (never hit by construction)
+  G.curMap = rows; G.curName = (lvl && lvl.name) || 'THE DESCENT';
+  G.lives = 3;                                          // fresh lives each depth
+  G.dead = false; G.dir = null; G.lastCell = '';
+  G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
+  parse({ map: rows, name: 'D' + G.depth + '  ' + G.curName });
+  G.scene = 'play';
+}
+
 function parse(def){
-  const rows = def.map;
+  const rows = def.map; G.levelName = def.name || '';
   G.ROWS = rows.length; G.COLS = Math.max(...rows.map(r=>r.length));
   G.grid = []; G.coins = new Set(); G.coinsLeft = 0; G.enemies = []; G.fvar = []; G.wvar = [];
   for(let y=0;y<G.ROWS;y++){
@@ -133,12 +154,19 @@ function updateCamera(dt){
 }
 
 function nextLevel(){
+  if(G.endless){ G.depth++; saveBestDepth(); transition(()=>loadEndlessDepth()); return; }
   if(G.levelIndex+1 < LEVELS.length){ transition(()=>loadLevel(G.levelIndex+1)); }
   else { saveBest(); transition(()=>{ G.scene='win'; }); }
 }
 function saveBest(){
   const s = getState(); const best = Math.max(s?.progress?.best||0, G.score);
   patch({ progress: { ...(s.progress||{}), best, level: G.levelIndex+1 } });
+}
+function saveBestDepth(){
+  const s = getState();
+  const best = Math.max(s?.progress?.best||0, G.score);
+  const bestDepth = Math.max(s?.progress?.bestDepth||0, G.depth);
+  patch({ progress: { ...(s.progress||{}), best, bestDepth } });
 }
 
 // ---------------- input ----------------
@@ -180,7 +208,8 @@ function handleTap(vx,vy){
 function onButton(id){
   sound.play('tap');
   if(id==='play') transition(()=>{ G.scene='select'; });            // PLAY → level select
-  else if(id==='retry') transition(()=>startRun(G.runStart||0));     // replay the chosen level
+  else if(id==='endless') transition(startEndless);                  // ENDLESS → generated descent
+  else if(id==='retry') transition(()=> G.endless ? startEndless() : startRun(G.runStart||0));
   else if(id && id.startsWith('lvl')) transition(()=>startRun(+id.slice(3)));  // pick a level card
   else if(id==='menu') transition(()=>{ G.scene='title'; });
   else if(id==='settings') transition(()=>{ G.scene='menu'; });
@@ -290,8 +319,9 @@ function die(){
 }
 function respawnOrEnd(){
   if(G._won){ G._won=false; nextLevel(); return; }
-  if(G.lives<=0){ saveBest(); transition(()=>{ G.scene='gameover'; }); }
-  else { parse(LEVELS[G.levelIndex]); G.dead=false; G.dir=null; G.lastCell=''; G.trail.length=0; }
+  if(G.lives<=0){ (G.endless?saveBestDepth:saveBest)(); transition(()=>{ G.scene='gameover'; }); }
+  else { parse(G.endless ? { map:G.curMap, name:'D'+G.depth+'  '+G.curName } : LEVELS[G.levelIndex]);
+    G.dead=false; G.dir=null; G.lastCell=''; G.trail.length=0; }
 }
 
 // ---------------- particles / fx ----------------
@@ -315,11 +345,12 @@ function render(){
   const ctx=G.ctx; ctx.imageSmoothingEnabled=false;
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
-  if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0}); }
+  if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, bestDepth:getState()?.progress?.bestDepth||0}); }
   else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:LEVELS.length}); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
-  else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
+  else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0,
+    depth:G.endless?G.depth:null, bestDepth:getState()?.progress?.bestDepth||0}); }
   else { G.buttons=[]; renderPlay(ctx); }
 
   // flash overlay
@@ -540,7 +571,7 @@ function drawHUD(ctx){
   // hearts
   for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 6+i*10, 8);
   // level name
-  drawTextCentered(ctx, LEVELS[G.levelIndex].name, VW/2, 7, PAL.goldHi, 1);
+  drawTextCentered(ctx, G.levelName, VW/2, 7, PAL.goldHi, 1);
   // score (right)
   const s='GOLD '+G.score; drawText(ctx, s, VW-6-textWidth(s,1), 8, PAL.gold, 1);
 }
