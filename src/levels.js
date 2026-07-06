@@ -5,39 +5,49 @@
 // auto-places a coin on every slide-swept floor tile (see game.js parse()).
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
 
-// Level 1 — a gentle starter that introduces the slide. Distinct room shapes,
-// start (P) → exit (E) along one clear path: small square → wide pillar hall →
-// tall narrow shaft → donut room (central pillar) → sarcophagus. Coins are
-// spawned by the game ONLY on tiles a slide can pass through (computeSwept), so
-// the placed count always equals the collectible count.
-// ROWS is authored top-down for readability, then flipped at export so play runs
-// BOTTOM-TO-TOP: the hero starts at the bottom and climbs up to the sarcophagus.
-const ROWS = [
-  '##############',
-  '#.P..#########',   // A — small start square (P off the wall so the entrance pyramid fits)
-  '#....#########',
-  '#....#########',
-  '#....#########',
-  '#..###########',   // A→B opening spans cols 1-2 so a left/right slide can still
-                      // reach the shaft (col-1 wall stop → up); avoids a dead end.
-  '#............#',   // B — wide hall
-  '#..#.....#...#',   //     with two pillars
-  '#............#',
-  '#............#',
-  '############.#',   // shaft B→C
-  '#########....#',   // C — tall narrow shaft
-  '#########....#',
-  '#########....#',
-  '#########....#',
-  '#########....#',
-  '#########....#',
-  '#########.####',   // shaft C→D
-  '##........####',   // D — donut room
-  '##........####',
-  '##..##....####',   //     central pillar
-  '##........####',
-  '##....E...####',   //     sarcophagus
-  '##############',
+// Level 1 — "CURSED TOMB": editor-authored intro with hand-placed coins.
+// Validated: solvable, 0 traps, P grounded, all 66 coins reachable, ~19 swipes.
+const CURSED_TOMB = [
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '###Eooooo####',
+  '########o####',
+  '########o####',
+  '#####oooooo##',
+  '#####o##o.o##',
+  '#####o##ooo##',
+  '#####ooo#####',
+  '#ooooo#o#####',
+  '#o###ooo#####',
+  '#o###########',
+  '#o###oooooo##',
+  '#ooooo####o##',
+  '####oo##ooo##',
+  '####oo##o####',
+  '####oo##oooo#',
+  '###########o#',
+  '#######...#o#',
+  '#######.Pooo#',
+  '#############',
 ];
 
 // Level 2 — "PILLAR HALLS": three pillar rooms linked by single-path corridors,
@@ -168,7 +178,7 @@ const HOLLOW_LABYRINTH = [
 ];
 
 export const LEVELS = [
-  { name: 'ANTECHAMBER',      map: ROWS.slice().reverse() },
+  { name: 'CURSED TOMB',      map: CURSED_TOMB },
   { name: 'HOLLOW LABYRINTH', map: HOLLOW_LABYRINTH },
   { name: 'PILLAR HALLS',     map: L2 },
   { name: 'GUARDIAN CRYPT',   map: L3 },
