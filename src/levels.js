@@ -9,9 +9,9 @@
 // them (0..3) the player grabbed. Walkable like coins, never auto-coined.
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
 
-// Level 1 — "CURSED TOMB": editor-authored intro with hand-placed coins.
-// Validated: solvable, 0 traps, P grounded, all 66 coins reachable, ~19 swipes.
-const CURSED_TOMB = [
+// Level 1 — "lvl_1" (editor-authored intro; was "CURSED TOMB"). 3 star pickups.
+// Validated: solvable, 0 traps, P grounded, all coins reachable, ~19 swipes.
+const LVL_1 = [
   '#############',
   '#############',
   '#############',
@@ -33,7 +33,7 @@ const CURSED_TOMB = [
   '#############',
   '#############',
   '#############',
-  '###Eooooo####',
+  '###Eoooo*####',
   '########o####',
   '########o####',
   '#####oooooo##',
@@ -41,13 +41,13 @@ const CURSED_TOMB = [
   '#####o##ooo##',
   '#####ooo#####',
   '#ooooo#o#####',
-  '#o###ooo#####',
+  '#o###oo*#####',
   '#o###########',
   '#o###oooooo##',
   '#ooooo####o##',
   '####oo##ooo##',
   '####oo##o####',
-  '####oo##oooo#',
+  '####oo##*ooo#',
   '###########o#',
   '#######...#o#',
   '#######.Pooo#',
@@ -74,7 +74,7 @@ const LVL_2 = [
   '#############',
   '######E######',
   '######o######',
-  '######oooooo#',
+  '######ooooo*#',
   '###########o#',
   '###########o#',
   '###########o#',
@@ -86,12 +86,12 @@ const LVL_2 = [
   '##oooo#######',
   '#####.oo#####',
   '#######o#####',
-  '###ooooo#####',
+  '###oooo*#####',
   '#ooo#########',
   '#o###########',
   '#o#ooooooooo#',
   '#o#o######.o#',
-  '#o#o####oooo#',
+  '#o#o####*ooo#',
   '#ooo####o####',
   '########oooo#',
   '###########o#',
@@ -127,7 +127,7 @@ const LVL_3 = [
   '##oooooo#####',
   '###o...o#####',
   '###o...o#####',
-  '###o..Xo#####',
+  '###*..Xo#####',
   '###ooooo#####',
   '###o#########',
   '###oooooo####',
@@ -135,12 +135,12 @@ const LVL_3 = [
   '###oooo#o####',
   '###o..o#o####',
   '###o##o.o####',
-  '###o##ooo####',
+  '###o##*oo####',
   '###o#########',
   '#ooooooooooo#',
   '#o#o#######o#',
   '#o#o###...#o#',
-  '#ooo###.Pooo#',
+  '#oo*###.Pooo#',
   '#############',
 ];
 
@@ -168,7 +168,7 @@ const LVL_4 = [
   '###########o#',
   '###########o#',
   '###########o#',
-  '##oooooooooo#',
+  '##ooooooooo*#',
   '##o##########',
   '##o##########',
   '##o##########',
@@ -176,12 +176,12 @@ const LVL_4 = [
   '##oooo#######',
   '#####ooo#####',
   '#######o#####',
-  '###oooo=#####',
+  '###*ooo=#####',
   '#ooo#########',
   '#o###########',
   '#o#ooooooooo#',
   '#o#o######.o#',
-  '#o#o####oooo#',
+  '#o#o####*ooo#',
   '#ooo####o####',
   '####ooo#oooo#',
   '#..#o#o####o#',
@@ -218,7 +218,7 @@ const LVL_5 = [
   '##o##########',
   '##o##########',
   '##o##########',
-  '##>ooo#######',
+  '##>*oo#######',
   '#####.oo#####',
   '#######o#####',
   '###ooooo#####',
@@ -226,11 +226,11 @@ const LVL_5 = [
   '#o###########',
   '#o#ooooooooo#',
   '#o#o######.o#',
-  '#o#o####ooo<#',
+  '#o#o####oo*<#',
   '#ooo####o####',
   '####ooo#oooo#',
   '#..#o#o####o#',
-  '#P.oo#oooooo#',
+  '#P.oo#ooooo*#',
   '#############',
 ];
 
@@ -280,7 +280,7 @@ const LVL_6 = [
 ];
 
 export const LEVELS = [
-  { name: 'CURSED TOMB', map: CURSED_TOMB },
+  { name: 'lvl_1',       map: LVL_1 },
   { name: 'lvl_2',       map: LVL_2 },
   { name: 'lvl_3',       map: LVL_3 },
   { name: 'lvl_4',       map: LVL_4 },
