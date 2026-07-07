@@ -97,7 +97,7 @@ const HOLLOW_LABYRINTH = [
 ];
 
 // Editor-authored trap chamber: a patrolling mummy (X) + a vertical laser gate (|).
-// Validated: solvable, 0 traps, P grounded, all 69 coins reachable, ~14 swipes.
+// Validated: solvable, 0 traps, P grounded, all 65 coins reachable, ~14 swipes.
 // Note: the mummy must be TIMED (not walked around) — that's intended here.
 const TRAPPED_TOMB = [
   '#############',
@@ -131,9 +131,9 @@ const TRAPPED_TOMB = [
   '###oooooo####',
   '########o####',
   '###oooo#o####',
-  '###o.|o#o####',
-  '###o##o#o####',
-  '###o##ooo####',
+  '###o..o#o####',
+  '###o##...####',
+  '###o##|.o####',
   '###o#########',
   '#ooooooooooo#',
   '#o#o#######o#',
