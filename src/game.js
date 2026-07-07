@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707d';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707d';
-import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707d';
-import { getState, patch, reset } from './state.js?v=20260707d';
-import * as sound from './sound.js?v=20260707d';
-import { generateLevel } from './levelgen.js?v=20260707d';
+import { LEVELS } from './levels.js?v=20260707e';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707e';
+import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707e';
+import { getState, patch, reset } from './state.js?v=20260707e';
+import * as sound from './sound.js?v=20260707e';
+import { generateLevel } from './levelgen.js?v=20260707e';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -78,7 +78,8 @@ export function startGame(canvas){
     laserCells:()=>G.laserCells?[...G.laserCells]:[], result:()=>G.result, coinsTotal:()=>G.coinsTotal,
     starsTotal:()=>G.starsTotal, starsLeft:()=>G.stars?G.stars.size:0,
     arcade:()=>({on:G.arcade, depth:G.arcadeDepth, fillY:G.fill?Math.round(G.fill.y):null,
-      fillSpeed:G.fill?G.fill.speed:null, fly:!!G.arcadeFly, score:G.score, name:G.levelName}),
+      fillSpeed:G.fill?G.fill.speed:null, fly:!!G.arcadeFly, score:G.score, name:G.levelName,
+      intro:G.intro, hasStartCell:!!G.startCell}),
     win:()=>{ if(G.scene==='play' && G.player && !G.dead) exitReached(); },   // QA: trigger exit/fly
   };
 }
@@ -140,6 +141,7 @@ function loadArcadeLevel(){
   G.dead = false; G.dir = null; G.lastCell = ''; G.confirmExit = false; G.arcadeFly = null;
   G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
   parse({ map: rows, name: 'ARCADE  ' + (d + 1) });     // G.score persists across levels (coin total)
+  if(d > 0){ G.intro = null; G.startCell = null; }      // after a warp: no entrance pyramid — drop straight in
   initFill();
   G.scene = 'play';
 }
