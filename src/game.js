@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707f';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707f';
-import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707f';
-import { getState, patch, reset } from './state.js?v=20260707f';
-import * as sound from './sound.js?v=20260707f';
-import { generateLevel } from './levelgen.js?v=20260707f';
+import { LEVELS } from './levels.js?v=20260707g';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707g';
+import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707g';
+import { getState, patch, reset } from './state.js?v=20260707g';
+import * as sound from './sound.js?v=20260707g';
+import { generateLevel } from './levelgen.js?v=20260707g';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -371,8 +371,9 @@ function update(dt){
   if(G.intro!==null){ G.intro+=dt; if(G.intro>=INTRO_DUR) G.intro=null; if(G.player) updateCamera(dt); return; } // entrance intro
   if(G.hs>0){ G.hs-=dt; return; }     // hit-stop freezes the world
   if(G.dead){ G.deadTimer-=dt; if(G.deadTimer<=0) respawnOrEnd(); if(G.player) updateCamera(dt); return; }
-  // arcade flythrough: hero physically flies up out of the tunnel, the next level
-  // loads, then it drops onto the new start. Camera follows; no overlay/flash.
+  // arcade flythrough: one continuous upward flight — the hero rises out of the
+  // tunnel, the next level loads, and it keeps rising from below onto the new
+  // start (bottom-up, along the direction of travel). Camera follows; no overlay.
   if(G.arcadeFly){
     const p=G.player, w=G.arcadeFly, step=FLY_SPEED*dt;
     if(w.phase==='out'){
@@ -380,13 +381,13 @@ function update(dt){
       if(p.fy<=w.ty){                                   // risen clear of the tunnel → swap level
         G.arcadeDepth++; loadArcadeLevel();             // places hero at the new start P (no intro)
         const np=G.player, sx=np.cx, sy=np.cy;
-        np.fx=sx; np.fy=sy-WARP_DIST; np.cx=np.tx=sx; np.cy=np.ty=Math.round(np.fy); np.moving=false;
-        G.arcadeFly={ phase:'in', tx:sx, ty:sy };       // fall the same distance back onto the start
-        G.dir='down'; G.heroAngle=HERO_ANGLE.down;
+        np.fx=sx; np.fy=sy+WARP_DIST; np.cx=np.tx=sx; np.cy=np.ty=Math.round(np.fy); np.moving=false;
+        G.arcadeFly={ phase:'in', tx:sx, ty:sy };       // keep rising from below onto the start
+        G.dir='up'; G.heroAngle=HERO_ANGLE.up;
       }
-    } else {                                            // 'in' — drop onto the start
-      p.fy+=step; p.fx=w.tx; G.heroAngle=HERO_ANGLE.down;
-      if(p.fy>=w.ty){ p.fy=w.ty; p.fx=w.tx; p.cx=w.tx; p.cy=w.ty; p.moving=false;
+    } else {                                            // 'in' — rise onto the start (bottom-up)
+      p.fy-=step; p.fx=w.tx; G.heroAngle=HERO_ANGLE.up;
+      if(p.fy<=w.ty){ p.fy=w.ty; p.fx=w.tx; p.cx=w.tx; p.cy=w.ty; p.moving=false;
         G.lastCell=w.tx+','+w.ty; G.arcadeFly=null; }   // landed — resume play
     }
     if(G.player) updateCamera(dt); return;
