@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706q';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706q';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706q';
-import { getState, patch, reset } from './state.js?v=20260706q';
-import * as sound from './sound.js?v=20260706q';
-import { generateLevel } from './levelgen.js?v=20260706q';
+import { LEVELS } from './levels.js?v=20260706r';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706r';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706r';
+import { getState, patch, reset } from './state.js?v=20260706r';
+import * as sound from './sound.js?v=20260706r';
+import { generateLevel } from './levelgen.js?v=20260706r';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -16,6 +16,8 @@ const HIT = 0.55;   // collision distance (tiles)
 const LASER_CHARGE = 3.0;                       // telegraph time before firing (s)
 const LASER_FIRE   = 0.5;                       // lethal window (s)
 const LASER_PERIOD = LASER_CHARGE + LASER_FIRE; // full charge→fire cycle
+const SPIKE_ARM = 0.5;                          // delay after touch before spikes extend (s)
+const SPIKE_UP  = 0.8;                          // how long extended spikes stay out (s)
 
 const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
 // Hero orientation: the sprite (feet at its bottom) is rotated so the feet point
@@ -30,7 +32,7 @@ const G = {
   levelIndex:0, score:0, lives:3, levelName:'',
   endless:false, depth:1, runSeed:1, curMap:null, curName:'',
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, coinsTotal:0, exitPos:{x:0,y:0},
-  lasers:[], laserCells:null, result:null,
+  lasers:[], laserCells:null, spikes:null, result:null,
   boardX:0, boardY:0, fvar:[], wvar:[],
   player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
   intro:null, startCell:null,
@@ -100,6 +102,7 @@ function parse(def){
   const rows = def.map; G.levelName = def.name || '';
   G.ROWS = rows.length; G.COLS = Math.max(...rows.map(r=>r.length));
   G.grid = []; G.coins = new Set(); G.coinsLeft = 0; G.enemies = []; G.fvar = []; G.wvar = [];
+  G.spikes = new Map();                   // 'x,y' -> {phase:'idle'|'armed'|'up', t}
   const manualCoins = new Set();          // 'o' cells authored on the map (if any)
   const laserEmitters = [];               // '='/'|' beam-gate emitters
   for(let y=0;y<G.ROWS;y++){
@@ -108,7 +111,7 @@ function parse(def){
       const ch = rows[y][x] || '#';
       let t = 'floor';
       if(ch==='#') t='wall';
-      else if(ch==='^') t='spike';
+      else if(ch==='^'){ t='spike'; G.spikes.set(x+','+y,{phase:'idle',t:0}); }
       else if(ch==='E'){ t='exit'; G.exitPos={x,y}; }
       else if(ch==='o') manualCoins.add(x+','+y);   // hand-placed coin (walkable floor)
       else if(ch==='=') laserEmitters.push({x,y,axis:'h'});   // horizontal beam gate
@@ -308,6 +311,19 @@ function update(dt){
        G.laserCells.has(Math.round(p.fx)+','+Math.round(p.fy))){ die(); return; }
   }
 
+  // spikes — armed by a touch, extend after SPIKE_ARM, lethal while up
+  if(G.spikes && G.spikes.size && !G.dead && p){
+    const pk = Math.round(p.fx)+','+Math.round(p.fy);
+    for(const [k,sp] of G.spikes){
+      if(sp.phase==='armed'){ sp.t-=dt;
+        if(sp.t<=0){ sp.phase='up'; sp.t=SPIKE_UP; G.shake=Math.max(G.shake,1.5);
+          if(k===pk){ die(); return; } } }                  // popped out under the hero
+      else if(sp.phase==='up'){ sp.t-=dt;
+        if(sp.t<=0){ sp.phase='idle'; }
+        else if(k===pk){ die(); return; } }                 // standing on extended spikes
+    }
+  }
+
   // enemies
   for(const e of G.enemies){
     if(!e.moving){
@@ -336,7 +352,9 @@ function enterCell(x,y){
   if(G.coins.has(k)){ G.coins.delete(k); G.coinsLeft--; G.score++;
     burst(x*TILE+8, y*TILE+8, 6, PAL.gold, 30, 0.5); sound.play('tap'); G.flash=0.12; G.flashCol=PAL.goldHi; }
   const t=G.grid[y][x];
-  if(t==='spike'){ die(); return; }
+  if(t==='spike'){ const sp=G.spikes.get(k);
+    if(sp){ if(sp.phase==='up'){ die(); return; }                 // already out → lethal
+            else if(sp.phase==='idle'){ sp.phase='armed'; sp.t=SPIKE_ARM; } } }  // touch → arm
   if(G.laserCells && G.laserCells.has(k) && (G.t % LASER_PERIOD) >= LASER_CHARGE){ die(); return; }
   if(t==='exit'){ exitReached(); }
 }
@@ -434,11 +452,11 @@ function renderPlay(ctx){
   for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
     const px=Math.round(bx+x*TILE), py=Math.round(by+y*TILE), t=G.grid[y][x];
     if(t==='wall'){ ctx.drawImage(sprite('wall'+G.wvar[y][x]), px, py); }
-    else { ctx.drawImage(sprite('floor'+G.fvar[y][x]), px, py);
-      if(t==='spike') ctx.drawImage(sprite('spikes'), px, py); }
+    else { ctx.drawImage(sprite('floor'+G.fvar[y][x]), px, py); }   // spikes drawn by drawSpikes (state-based)
   }
   // neon carved-stone outline on every wall edge facing an open cell
   drawWallEdges(ctx, x0, y0, x1, y1);
+  drawSpikes(ctx, bx, by);   // retracted / arming / extended
   // coins (bob + shine)
   for(const c of G.coins){ const [x,y]=c.split(',').map(Number);
     if(x<x0||x>x1||y<y0||y>y1) continue;
@@ -505,6 +523,27 @@ function renderPlay(ctx){
 
   ctx.restore();
   drawHUD(ctx);
+}
+
+// Spikes: flat base when idle; points rise (amber) while arming, then snap to
+// full steel when extended (lethal).
+function drawSpikes(ctx, bx, by){
+  if(!G.spikes || !G.spikes.size) return;
+  const P=PAL;
+  for(const [k,sp] of G.spikes){
+    const [x,y]=k.split(',').map(Number);
+    const px=Math.round(bx+x*TILE), py=Math.round(by+y*TILE);
+    ctx.fillStyle=P.stoneD; ctx.fillRect(px, py+11, TILE, 5);   // base slab
+    ctx.fillStyle=P.stone;  ctx.fillRect(px, py+11, TILE, 1);
+    let h=0, col=P.steel, hi=P.steelHi;
+    if(sp.phase==='armed'){ h=1-Math.max(0,sp.t/SPIKE_ARM); col=P.gold; hi=P.goldHi; }  // rising warning
+    else if(sp.phase==='up'){ h=1; col=P.steelHi; hi=P.white; }                          // extended = lethal
+    if(h>0){ const ph=Math.max(1,Math.round(7*h)), topY=py+11-ph;
+      for(const X of [2,6,10,13]){
+        ctx.fillStyle=P.steelD; ctx.fillRect(px+X-1, topY, 3, ph);
+        ctx.fillStyle=col;      ctx.fillRect(px+X,   topY, 1, ph);
+        ctx.fillStyle=hi;       ctx.fillRect(px+X,   topY, 1, 1); } }
+  }
 }
 
 // Laser beam-gates: faint line that intensifies while charging, then a bright
