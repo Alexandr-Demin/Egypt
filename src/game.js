@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707c';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707c';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707c';
-import { getState, patch, reset } from './state.js?v=20260707c';
-import * as sound from './sound.js?v=20260707c';
-import { generateLevel } from './levelgen.js?v=20260707c';
+import { LEVELS } from './levels.js?v=20260707d';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707d';
+import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707d';
+import { getState, patch, reset } from './state.js?v=20260707d';
+import * as sound from './sound.js?v=20260707d';
+import { generateLevel } from './levelgen.js?v=20260707d';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -18,6 +18,9 @@ const LASER_FIRE   = 0.5;                       // lethal window (s)
 const LASER_PERIOD = LASER_CHARGE + LASER_FIRE; // full charge→fire cycle
 const SPIKE_ARM = 0.5;                          // delay after touch before spikes extend (s)
 const SPIKE_UP  = 0.8;                          // how long extended spikes stay out (s)
+// arcade: rising "cursed sand" flood — resets each level, accelerates with depth
+const FILL_BASE = 5, FILL_RAMP = 2.0;           // px/s base + per cleared level
+const ARCADE_FLY = 1.8;                         // fly-to-next-level interlude (s)
 // pufferfish cycle: idle (small) → inflate → puffed (lethal 3x3) → deflate
 const PUFF_IDLE=2.5, PUFF_INFLATE=0.6, PUFF_HOLD=0.8, PUFF_DEFLATE=0.5;
 const PUFF_PERIOD = PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD+PUFF_DEFLATE;
@@ -52,6 +55,7 @@ const G = {
   particles:[], trail:[], shake:0, hs:0, flash:0, flashCol:'#fff',
   psx:1, psy:1, buttons:[], trans:null, dead:false, deadTimer:0,
   dustTimer:0, confirmExit:false,
+  arcade:false, arcadeDepth:0, fill:null, arcadeFly:null,   // arcade run state
 };
 
 // ---------------- lifecycle ----------------
@@ -73,6 +77,9 @@ export function startGame(canvas){
     testMap:(rows,name)=>{ G.endless=false; G.score=0; G.lives=3; parse({map:rows,name:name||'TEST'}); G.scene='play'; },
     laserCells:()=>G.laserCells?[...G.laserCells]:[], result:()=>G.result, coinsTotal:()=>G.coinsTotal,
     starsTotal:()=>G.starsTotal, starsLeft:()=>G.stars?G.stars.size:0,
+    arcade:()=>({on:G.arcade, depth:G.arcadeDepth, fillY:G.fill?Math.round(G.fill.y):null,
+      fillSpeed:G.fill?G.fill.speed:null, fly:!!G.arcadeFly, score:G.score, name:G.levelName}),
+    win:()=>{ if(G.scene==='play' && G.player && !G.dead) exitReached(); },   // QA: trigger exit/fly
   };
 }
 
@@ -84,7 +91,7 @@ function loop(ts){
 function tick(dt){ update(dt); render(); }
 
 // ---------------- run / level flow ----------------
-function startRun(i=0){ G.endless = false; G.score = 0; G.lives = 3; G.runStart = i; loadLevel(i); }
+function startRun(i=0){ G.endless = false; G.arcade = false; G.score = 0; G.lives = 3; G.runStart = i; loadLevel(i); }
 
 function loadLevel(i){
   G.levelIndex = i; G.dead = false; G.dir = null; G.lastCell = ''; G.confirmExit = false;
@@ -95,7 +102,7 @@ function loadLevel(i){
 
 // ---- endless: procedurally generated descent, difficulty ramps with depth ----
 function startEndless(){
-  G.endless = true; G.score = 0; G.depth = 1;
+  G.endless = true; G.arcade = false; G.score = 0; G.depth = 1;
   G.runSeed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0;
   loadEndlessDepth();
 }
@@ -110,6 +117,43 @@ function loadEndlessDepth(){
   G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
   parse({ map: rows, name: 'D' + G.depth + '  ' + G.curName });
   G.scene = 'play';
+}
+
+// ---- arcade: stitched infinite run. Authored levels first (in order), then
+// procedural generation; a rising flood chases the hero, coins are the score. ----
+function startArcade(){
+  G.arcade = true; G.endless = false; G.score = 0; G.arcadeDepth = 0; G.arcadeFly = null;
+  G.runSeed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0;
+  loadArcadeLevel();
+}
+function loadArcadeLevel(){
+  const d = G.arcadeDepth;
+  let rows, name;
+  if(d < LEVELS.length){ rows = LEVELS[d].map; name = LEVELS[d].name; }   // authored, in order
+  else {                                                                  // then generated
+    const difficulty = Math.min(1, (d - LEVELS.length) / 12);
+    const seed = (G.runSeed + d * 101) >>> 0; const lvl = generateLevel({ seed, difficulty });
+    rows = lvl ? lvl.rows : LEVELS[0].map; name = (lvl && lvl.name) || 'THE DESCENT';
+  }
+  G.curMap = rows; G.curName = name;
+  G.lives = 1;                                          // arcade is single-life — one touch ends the run
+  G.dead = false; G.dir = null; G.lastCell = ''; G.confirmExit = false; G.arcadeFly = null;
+  G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
+  parse({ map: rows, name: 'ARCADE  ' + (d + 1) });     // G.score persists across levels (coin total)
+  initFill();
+  G.scene = 'play';
+}
+// Flood starts just below the map and rises; faster the deeper the run.
+function initFill(){ G.fill = { y: G.ROWS*TILE + 16, speed: FILL_BASE + G.arcadeDepth*FILL_RAMP }; }
+// Reached the tunnel: no result screen — fly to the next stitched level.
+function startArcadeFly(){
+  G.arcadeFly = { t:0 };
+  G.player.moving = false; G.flash = 0.4; G.flashCol = PAL.goldHi; sound.play('win');
+  burst(G.exitPos.x*TILE+8, G.exitPos.y*TILE+8, 18, PAL.gold, 50, 0.7);
+}
+function saveArcadeBest(){
+  const s = getState(); const best = Math.max(s?.progress?.arcadeBest||0, G.score);
+  patch({ progress: { ...(s.progress||{}), arcadeBest: best } });
 }
 
 function parse(def){
@@ -272,9 +316,12 @@ function handleTap(vx,vy){
 }
 function onButton(id){
   sound.play('tap');
-  if(id==='play') transition(()=>{ G.scene='select'; });            // PLAY → level select
-  else if(id==='endless') transition(startEndless);                  // ENDLESS → generated descent
-  else if(id==='retry') transition(()=> G.endless ? startEndless() : startRun(G.runStart||0));
+  if(id==='start') transition(()=>{ G.scene='modes'; });             // title tap → mode select
+  else if(id==='story') transition(()=>{ G.scene='select'; });        // STORY → level select
+  else if(id==='arcade') transition(startArcade);                     // ARCADE → stitched infinite run
+  else if(id==='play') transition(()=>{ G.scene='select'; });        // (legacy) PLAY → level select
+  else if(id==='endless') transition(startEndless);                  // (legacy) ENDLESS → generated descent
+  else if(id==='retry') transition(()=> G.arcade ? startArcade() : G.endless ? startEndless() : startRun(G.runStart||0));
   else if(id==='exit') G.confirmExit = true;                        // open in-match confirm dialog
   else if(id==='confirmNo') G.confirmExit = false;                  // stay in the match
   else if(id==='confirmYes'){ G.confirmExit = false; transition(()=>{ G.scene='title'; }); } // leave
@@ -288,7 +335,7 @@ function onButton(id){
 }
 
 function setDir(d){
-  if(G.scene!=='play' || G.trans || G.dead || G.intro!==null || !G.player) return;
+  if(G.scene!=='play' || G.trans || G.dead || G.intro!==null || G.arcadeFly || !G.player) return;
   if(G.player.moving){ G.bufDir=d; return; }  // buffer input mid-slide → instant turn at the wall
   doMove(d);
 }
@@ -319,6 +366,9 @@ function update(dt){
   if(G.intro!==null){ G.intro+=dt; if(G.intro>=INTRO_DUR) G.intro=null; if(G.player) updateCamera(dt); return; } // entrance intro
   if(G.hs>0){ G.hs-=dt; return; }     // hit-stop freezes the world
   if(G.dead){ G.deadTimer-=dt; if(G.deadTimer<=0) respawnOrEnd(); if(G.player) updateCamera(dt); return; }
+  // arcade fly-to-next interlude: world frozen while the hero warps to the next level
+  if(G.arcadeFly){ G.arcadeFly.t+=dt; if(G.arcadeFly.t>=ARCADE_FLY){ G.arcadeDepth++; loadArcadeLevel(); }
+    if(G.player) updateCamera(dt); return; }
 
   // player slide
   const p=G.player;
@@ -336,6 +386,12 @@ function update(dt){
     if(stopped && !G.dead) onStop();
   } else { G.trail.length=0; }
   if(G.player) updateCamera(dt);      // camera tracks the player 1:1 after the move resolves
+
+  // arcade flood — rises (accelerating with depth), resets per level; a touch ends the run
+  if(G.arcade && G.fill && !G.dead && p){
+    G.fill.y -= G.fill.speed*dt;
+    if(p.fy*TILE + 10 >= G.fill.y){ die(); return; }
+  }
 
   // lasers — lethal while firing (also catches a hero resting on a live beam)
   if(G.laserCells && G.laserCells.size && !G.dead && p){
@@ -407,6 +463,7 @@ function onStop(){
 }
 function exitReached(){
   if(G.dead) return;
+  if(G.arcade){ startArcadeFly(); return; }   // arcade: tunnel → fly to the next stitched level
   G.flash=0.5; G.flashCol=PAL.goldHi; sound.play('win');
   burst(G.exitPos.x*TILE+8, G.exitPos.y*TILE+8, 18, PAL.gold, 50, 0.7);
   G.player.moving=false; G.dead=true; G.deadTimer=0.45; G._won=true;
@@ -435,6 +492,7 @@ function showResult(){
 }
 function respawnOrEnd(){
   if(G._won){ G._won=false; showResult(); return; }
+  if(G.arcade){ saveArcadeBest(); transition(()=>{ G.scene='gameover'; }); return; }   // single-life run ends
   if(G.lives<=0){ (G.endless?saveBestDepth:saveBest)(); transition(()=>{ G.scene='gameover'; }); }
   else {
     const keptCoins = G.coins, keptLeft = G.coinsLeft, keptStars = G.stars;   // pickups already grabbed stay grabbed
@@ -465,12 +523,14 @@ function render(){
   const ctx=G.ctx; ctx.imageSmoothingEnabled=false;
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
-  if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, bestDepth:getState()?.progress?.bestDepth||0}); }
+  if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, arcadeBest:getState()?.progress?.arcadeBest||0}); }
+  else if(G.scene==='modes'){ G.buttons=renderModes(ctx,VW,VH,G.t,{arcadeBest:getState()?.progress?.arcadeBest||0}); }
   else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:unlockedCount(), stars:getState()?.progress?.stars||{}}); }
   else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
-  else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0,
+  else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,
+    best:(G.arcade?getState()?.progress?.arcadeBest:getState()?.progress?.best)||0,
     depth:G.endless?G.depth:null, bestDepth:getState()?.progress?.bestDepth||0}); }
   else { renderPlay(ctx); G.buttons = G.confirmExit ? drawConfirm(ctx) : [EXIT_BTN]; }
 
@@ -522,6 +582,7 @@ function renderPlay(ctx){
   ctx.globalAlpha=gl*0.5; ctx.fillStyle=PAL.lapisL; ctx.beginPath(); ctx.arc(ex,ey,12,0,7); ctx.fill();
   ctx.globalAlpha=gl*0.4; ctx.fillStyle=PAL.goldHi; ctx.beginPath(); ctx.arc(ex,ey,8,0,7); ctx.fill();
   ctx.globalAlpha=1; ctx.drawImage(sprite('exit'), Math.round(bx+G.exitPos.x*TILE), Math.round(by+G.exitPos.y*TILE));
+  if(G.arcade) drawPortal(ctx, ex, ey);   // tunnel to the next stitched level
 
   // lasers (charge telegraph → lethal flash)
   drawLasers(ctx, bx, by);
@@ -567,13 +628,75 @@ function renderPlay(ctx){
     ctx.fillStyle=pt.color; ctx.fillRect(Math.round(bx+pt.x),Math.round(by+pt.y),pt.size,pt.size); }
   ctx.globalAlpha=1;
 
+  // arcade rising flood (world-space; the camera carries it)
+  if(G.arcade && G.fill) drawFill(ctx, bx, by);
+
   // vignette
   const vg=ctx.createRadialGradient(VW/2,VH/2,60,VW/2,VH/2,160);
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.45)');
   ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
 
   ctx.restore();
+  if(G.arcadeFly) drawArcadeFly(ctx);   // full-screen warp interlude
   drawHUD(ctx);
+}
+
+// Arcade tunnel/portal: concentric swirling rings of light at the exit.
+function drawPortal(ctx, ex, ey){
+  const P=PAL;
+  for(let r=13; r>=3; r-=3){
+    const a=0.25+0.25*Math.sin(G.t*4 - r*0.5);
+    ctx.globalAlpha=a; ctx.strokeStyle=r>7?P.lapisL:P.goldHi; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(ex, ey, r, 0, 7); ctx.stroke();
+  }
+  ctx.globalAlpha=1; ctx.fillStyle=P.white; ctx.beginPath(); ctx.arc(ex, ey, 2+Math.sin(G.t*6), 0, 7); ctx.fill();
+  // orbiting sparks spiral inward
+  for(let i=0;i<6;i++){ const ang=G.t*3+i*1.05, rr=3+((G.t*1.6+i*0.3)%1)*10;
+    ctx.globalAlpha=0.7; ctx.fillStyle=P.goldHi; ctx.fillRect(Math.round(ex+Math.cos(ang)*rr), Math.round(ey+Math.sin(ang)*rr), 1,1); }
+  ctx.globalAlpha=1;
+}
+
+// Rising "cursed sand" flood: a jagged, glowing crimson tide across the level
+// width, from its top edge down past the bottom. World-space (offset by camera).
+function drawFill(ctx, bx, by){
+  const P=PAL, topY=Math.round(by+G.fill.y), leftX=Math.round(bx), w=G.COLS*TILE;
+  if(topY>VH) return;                                 // still below the view
+  const y0=Math.max(HUD_H, topY);
+  // body
+  const g=ctx.createLinearGradient(0, topY, 0, VH);
+  g.addColorStop(0, P.wall); g.addColorStop(1, P.wallD);
+  ctx.fillStyle=g; ctx.fillRect(leftX, y0, w, VH-y0);
+  // jagged bright crest riding the top edge
+  for(let i=0;i<w;i++){ const wx=leftX+i;
+    if(wx<0||wx>VW) continue;
+    const j=Math.round(Math.sin((wx+G.t*40)*0.4)*1.5 + h2(wx, Math.floor(G.t*6))*2);
+    const cy=topY+j;
+    if(cy>=HUD_H && cy<VH){ ctx.fillStyle=(h2(wx*1.7, 3)>0.5)?P.goldHi:P.wallHi; ctx.fillRect(wx, cy, 1, 1); }
+    if(cy+1>=HUD_H && cy+1<VH){ ctx.fillStyle=P.wallEdge; ctx.globalAlpha=0.5; ctx.fillRect(wx, cy+1, 1, 1); ctx.globalAlpha=1; }
+  }
+}
+
+// Warp interlude: hero streaks upward through a tunnel of rushing stars.
+function drawArcadeFly(ctx){
+  const P=PAL, tt=G.arcadeFly.t, cx=VW/2;
+  ctx.fillStyle=P.bg; ctx.fillRect(0,0,VW,VH);
+  // rushing star streaks (downward = hero flying up)
+  for(let i=0;i<40;i++){
+    const sx=(i*61)%VW, base=(i*89)%VH, sp=120+((i*37)%160);
+    const sy=(base + tt*sp) % VH, len=6+((i*13)%10);
+    ctx.globalAlpha=0.4+0.5*((i%5)/5);
+    ctx.fillStyle=(i%4===0)?P.gold:P.wallHi; ctx.fillRect(sx, sy, 1, len);
+  }
+  ctx.globalAlpha=1;
+  // hero flying up (feet down), gentle bob + upward speed lines
+  const hy=VH/2 + Math.sin(tt*6)*4;
+  ctx.strokeStyle=P.goldHi; ctx.lineWidth=1;
+  for(const off of [-6,-2,2,6]){ const g=ctx.createLinearGradient(0,hy,0,hy+30);
+    g.addColorStop(0,P.goldHi); g.addColorStop(1,'rgba(255,210,30,0)');
+    ctx.strokeStyle=g; ctx.beginPath(); ctx.moveTo(cx+off, hy+8); ctx.lineTo(cx+off, hy+30); ctx.stroke(); }
+  ctx.imageSmoothingEnabled=false; ctx.drawImage(sprite('ball'), Math.round(cx-8), Math.round(hy-8));
+  drawTextCentered(ctx, 'WARP', cx, VH/2-40, PAL.goldHi, 2);
+  drawTextCentered(ctx, 'GOLD  '+G.score, cx, VH/2+40, PAL.gold, 1);
 }
 
 // Spikes: base slab (with rivets) + triangular points that rise (amber) while
@@ -837,10 +960,10 @@ function drawHUD(ctx){
   ctx.fillStyle=PAL.gold;                                   // "‹" chevron
   ctx.fillRect(eb.x+11,eb.y+4,2,2); ctx.fillRect(eb.x+9,eb.y+6,2,2); ctx.fillRect(eb.x+7,eb.y+8,2,2);
   ctx.fillRect(eb.x+9,eb.y+10,2,2); ctx.fillRect(eb.x+11,eb.y+12,2,2);
-  // hearts (shifted right to clear the exit button)
-  for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 26+i*10, 8);
-  // star pips — collected rating so far (hidden when the level has no stars, e.g. endless)
-  if(G.starsTotal>0){ const got=G.starsTotal-G.stars.size;
+  // hearts (shifted right to clear the exit button) — arcade is single-life, show none
+  if(!G.arcade) for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 26+i*10, 8);
+  // star pips — collected rating so far (hidden in arcade / when the level has no stars)
+  if(G.starsTotal>0 && !G.arcade){ const got=G.starsTotal-G.stars.size;
     for(let i=0;i<G.starsTotal;i++){ ctx.globalAlpha=i<got?1:0.28;
       ctx.drawImage(sprite('star'), 58+i*9, 7, 9, 9); } ctx.globalAlpha=1; }
   // level name

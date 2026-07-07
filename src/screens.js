@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707c';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707d';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -69,6 +69,51 @@ function drawLock(ctx, cx, cy){
   ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-1, by+2, 2, 4);    // keyhole
 }
 
+// Papyrus scroll icon (STORY mode), centred on (cx,cy).
+function drawScroll(ctx, cx, cy){
+  const P=PAL, w=28, h=34, x=Math.round(cx-w/2), y=Math.round(cy-h/2);
+  ctx.fillStyle=P.gold;   ctx.fillRect(x, y+4, w, h-8);            // parchment
+  ctx.fillStyle=P.goldHi; ctx.fillRect(x, y+4, w, 2);
+  ctx.fillStyle=P.goldD;  ctx.fillRect(x, y+h-6, w, 2);
+  ctx.fillStyle=P.wall;   ctx.fillRect(x-2, y, w+4, 5); ctx.fillRect(x-2, y+h-5, w+4, 5);  // rolled ends
+  ctx.fillStyle=P.wallHi; ctx.fillRect(x-2, y, w+4, 1); ctx.fillRect(x-2, y+h-5, w+4, 1);
+  ctx.fillStyle=P.wall;   for(let i=0;i<4;i++) ctx.fillRect(x+4, y+9+i*4, w-8, 1);         // writing
+}
+// Arcade cabinet icon (ARCADE mode), centred on (cx,cy).
+function drawCabinet(ctx, cx, cy){
+  const P=PAL, w=30, h=38, x=Math.round(cx-w/2), y=Math.round(cy-h/2);
+  ctx.fillStyle=P.wall;   ctx.fillRect(x, y, w, h);                // body
+  ctx.fillStyle=P.wallHi; ctx.fillRect(x, y, w, 1);
+  ctx.fillStyle=P.wallD;  ctx.fillRect(x, y+h-1, w, 1);
+  ctx.fillStyle=P.blackD; ctx.fillRect(x+4, y+5, w-8, 12);         // screen
+  ctx.fillStyle=P.gold;   ctx.fillRect(x+6,y+7,3,3); ctx.fillRect(x+12,y+10,3,3); ctx.fillRect(x+18,y+7,3,3);
+  ctx.fillStyle=P.goldD;  ctx.fillRect(x+3, y+22, w-6, 8);         // control panel
+  ctx.strokeStyle=P.goldHi; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+9,y+26); ctx.lineTo(x+9,y+21); ctx.stroke();
+  ctx.fillStyle=P.red;    ctx.beginPath(); ctx.arc(x+9, y+20, 2.5, 0, 7); ctx.fill();      // joystick ball
+  ctx.fillStyle=P.goldHi; ctx.fillRect(x+16,y+24,2,2); ctx.fillRect(x+21,y+24,2,2);         // buttons
+}
+
+// Mode-select: two big pixel icons — STORY (scroll) and ARCADE (cabinet).
+export function renderModes(ctx, VW, VH, t, data){
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);
+  drawTextCentered(ctx, 'MODE', VW/2, 30, PAL.gold, 3);
+  const CW=82, CH=100, GAP=12, y=86;
+  const story = { id:'story',  x:Math.round(VW/2-CW-GAP/2), y, w:CW, h:CH };
+  const arc   = { id:'arcade', x:Math.round(VW/2+GAP/2),    y, w:CW, h:CH };
+  frame(ctx, story.x, story.y, CW, CH);
+  drawScroll(ctx, story.x+CW/2, story.y+42);
+  drawTextCentered(ctx, 'STORY', story.x+CW/2, story.y+CH-24, PAL.goldHi, 1);
+  if(data && data.storyBest) drawTextCentered(ctx, 'BEST '+data.storyBest, story.x+CW/2, story.y+CH-12, PAL.wallEdge, 1);
+  frame(ctx, arc.x, arc.y, CW, CH);
+  drawCabinet(ctx, arc.x+CW/2, arc.y+42);
+  drawTextCentered(ctx, 'ARCADE', arc.x+CW/2, arc.y+CH-24, PAL.goldHi, 1);
+  if(data && data.arcadeBest) drawTextCentered(ctx, 'BEST '+data.arcadeBest, arc.x+CW/2, arc.y+CH-12, PAL.wallEdge, 1);
+  const back = { id:'menu', x:VW/2-30, y:212, w:60, h:16 };
+  frameBtn(ctx, back, 'BACK', 1);
+  return [story, arc, back];
+}
+
 // Level-select: a 2×5 grid of big cards, each with its number and three hollow
 // stars. The first `unlocked` cards are selectable (return button rects); the
 // rest are drawn semi-transparent and are not tappable.
@@ -106,22 +151,22 @@ export function renderTitle(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);
   frame(ctx, 6, 6, VW-12, VH-12);                 // screen border contour
   // title
-  drawTextCentered(ctx, 'SANDSLIDE', VW/2, 42, PAL.blackD, 3);          // shadow
-  drawTextCentered(ctx, 'SANDSLIDE', VW/2, 40, PAL.gold, 3);
-  if(data && data.best) drawTextCentered(ctx, 'BEST  '+data.best, VW/2, 90, PAL.goldHi, 1);
+  drawTextCentered(ctx, 'SANDSLIDE', VW/2, 46, PAL.blackD, 3);          // shadow
+  drawTextCentered(ctx, 'SANDSLIDE', VW/2, 44, PAL.gold, 3);
+  if(data && data.best)       drawTextCentered(ctx, 'BEST  '+data.best,        VW/2, 82, PAL.goldHi, 1);
+  if(data && data.arcadeBest) drawTextCentered(ctx, 'ARCADE  '+data.arcadeBest, VW/2, 96, PAL.wallEdge, 1);
   // bobbing Anubis hero
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(sprite('anubis'), VW/2-16, 108 + Math.sin(t*2)*3, 32, 32);
-  // PLAY (story levels) + ENDLESS (generated descent) buttons
-  const b = { id:'play',    x: VW/2-46, y: 168, w:92, h:26 };
-  const e = { id:'endless', x: VW/2-46, y: 200, w:92, h:26 };
-  frameBtn(ctx, b, 'PLAY', 2);
-  frameBtn(ctx, e, 'ENDLESS', 2);
-  if(data && data.bestDepth) drawTextCentered(ctx, 'DEPTH  '+data.bestDepth, VW/2, 236, PAL.wallEdge, 1);
-  // settings (cog) button, top-right
+  ctx.drawImage(sprite('anubis'), VW/2-16, 124 + Math.sin(t*2)*3, 32, 32);
+  // blinking "press to start" — the whole screen is the start button
+  ctx.globalAlpha = 0.35 + 0.65*(0.5 + 0.5*Math.sin(t*3));
+  drawTextCentered(ctx, 'PRESS TO START', VW/2, 198, PAL.goldHi, 1);
+  ctx.globalAlpha = 1;
+  // settings (cog) top-right, then a full-screen start hit-area (gear wins by order)
   const s = { id:'settings', x: VW-28, y: 14, w:22, h:22 };
   gear(ctx, s.x+11, s.y+11);
-  return [b, e, s];
+  const start = { id:'start', x:0, y:0, w:VW, h:VH };
+  return [s, start];
 }
 
 export function renderMenu(ctx, VW, VH, t, data){
