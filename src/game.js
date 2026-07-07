@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707e';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707e';
-import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707e';
-import { getState, patch, reset } from './state.js?v=20260707e';
-import * as sound from './sound.js?v=20260707e';
-import { generateLevel } from './levelgen.js?v=20260707e';
+import { LEVELS } from './levels.js?v=20260707f';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707f';
+import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707f';
+import { getState, patch, reset } from './state.js?v=20260707f';
+import * as sound from './sound.js?v=20260707f';
+import { generateLevel } from './levelgen.js?v=20260707f';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -20,7 +20,7 @@ const SPIKE_ARM = 0.5;                          // delay after touch before spik
 const SPIKE_UP  = 0.8;                          // how long extended spikes stay out (s)
 // arcade: rising "cursed sand" flood — resets each level, accelerates with depth
 const FILL_BASE = 5, FILL_RAMP = 2.0;           // px/s base + per cleared level
-const ARCADE_FLY = 1.8;                         // fly-to-next-level interlude (s)
+const FLY_SPEED = 20, WARP_DIST = 14;           // real flythrough: tiles/s + rise/drop distance (tiles)
 // pufferfish cycle: idle (small) → inflate → puffed (lethal 3x3) → deflate
 const PUFF_IDLE=2.5, PUFF_INFLATE=0.6, PUFF_HOLD=0.8, PUFF_DEFLATE=0.5;
 const PUFF_PERIOD = PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD+PUFF_DEFLATE;
@@ -147,11 +147,14 @@ function loadArcadeLevel(){
 }
 // Flood starts just below the map and rises; faster the deeper the run.
 function initFill(){ G.fill = { y: G.ROWS*TILE + 16, speed: FILL_BASE + G.arcadeDepth*FILL_RAMP }; }
-// Reached the tunnel: no result screen — fly to the next stitched level.
+// Reached the tunnel: a real in-world flythrough (no fake overlay, no flash).
+// Phase 'out' flies the hero straight up out of the tunnel; then the next level
+// loads and phase 'in' drops the hero down onto its start. Camera follows.
 function startArcadeFly(){
-  G.arcadeFly = { t:0 };
-  G.player.moving = false; G.flash = 0.4; G.flashCol = PAL.goldHi; sound.play('win');
+  G.player.moving = false; sound.play('win');
   burst(G.exitPos.x*TILE+8, G.exitPos.y*TILE+8, 18, PAL.gold, 50, 0.7);
+  G.arcadeFly = { phase:'out', ty: G.exitPos.y - WARP_DIST };   // rise WARP_DIST tiles above the tunnel
+  G.dir = 'up'; G.heroAngle = HERO_ANGLE.up;
 }
 function saveArcadeBest(){
   const s = getState(); const best = Math.max(s?.progress?.arcadeBest||0, G.score);
@@ -368,9 +371,26 @@ function update(dt){
   if(G.intro!==null){ G.intro+=dt; if(G.intro>=INTRO_DUR) G.intro=null; if(G.player) updateCamera(dt); return; } // entrance intro
   if(G.hs>0){ G.hs-=dt; return; }     // hit-stop freezes the world
   if(G.dead){ G.deadTimer-=dt; if(G.deadTimer<=0) respawnOrEnd(); if(G.player) updateCamera(dt); return; }
-  // arcade fly-to-next interlude: world frozen while the hero warps to the next level
-  if(G.arcadeFly){ G.arcadeFly.t+=dt; if(G.arcadeFly.t>=ARCADE_FLY){ G.arcadeDepth++; loadArcadeLevel(); }
-    if(G.player) updateCamera(dt); return; }
+  // arcade flythrough: hero physically flies up out of the tunnel, the next level
+  // loads, then it drops onto the new start. Camera follows; no overlay/flash.
+  if(G.arcadeFly){
+    const p=G.player, w=G.arcadeFly, step=FLY_SPEED*dt;
+    if(w.phase==='out'){
+      p.fy-=step; p.fx=p.tx=Math.round(p.fx); G.heroAngle=HERO_ANGLE.up;
+      if(p.fy<=w.ty){                                   // risen clear of the tunnel → swap level
+        G.arcadeDepth++; loadArcadeLevel();             // places hero at the new start P (no intro)
+        const np=G.player, sx=np.cx, sy=np.cy;
+        np.fx=sx; np.fy=sy-WARP_DIST; np.cx=np.tx=sx; np.cy=np.ty=Math.round(np.fy); np.moving=false;
+        G.arcadeFly={ phase:'in', tx:sx, ty:sy };       // fall the same distance back onto the start
+        G.dir='down'; G.heroAngle=HERO_ANGLE.down;
+      }
+    } else {                                            // 'in' — drop onto the start
+      p.fy+=step; p.fx=w.tx; G.heroAngle=HERO_ANGLE.down;
+      if(p.fy>=w.ty){ p.fy=w.ty; p.fx=w.tx; p.cx=w.tx; p.cy=w.ty; p.moving=false;
+        G.lastCell=w.tx+','+w.ty; G.arcadeFly=null; }   // landed — resume play
+    }
+    if(G.player) updateCamera(dt); return;
+  }
 
   // player slide
   const p=G.player;
@@ -600,10 +620,10 @@ function renderPlay(ctx){
   const p=G.player;
   if(p){
     const ang=G.heroAngle||0, cx=bx+p.fx*TILE+8, cy=by+p.fy*TILE+8;
-    if(p.moving && G.dir && (!G.dead||G._won)){
-      // speed-lines behind, length grows with distance flown this slide
+    if((p.moving||G.arcadeFly) && G.dir && (!G.dead||G._won)){
+      // speed-lines behind, length grows with distance flown this slide (fixed during a warp)
       const trav=Math.hypot(p.fx-G.slideFromX, p.fy-G.slideFromY)*TILE;
-      const len=Math.min(44, trav*0.95);
+      const len=G.arcadeFly ? 40 : Math.min(44, trav*0.95);
       if(len>3){
         const [ddx,ddy]=DIRS[G.dir], ox=-ddx, oy=-ddy, qx=-ddy, qy=ddx;  // back + perpendicular
         ctx.lineWidth=1;
@@ -620,7 +640,7 @@ function renderPlay(ctx){
       let a=1, ddy=0;
       if(G.intro!==null){ const tI=Math.min(1,G.intro/INTRO_DUR); a=Math.max(0,Math.min(1,(tI-0.5)/0.4)); ddy=(1-a)*6; }
       if(a>0){ ctx.save(); ctx.globalAlpha=a; ctx.translate(Math.round(cx), Math.round(cy+ddy)); ctx.rotate(ang); ctx.scale(G.psx,G.psy);
-        ctx.drawImage(sprite(p.moving?'ball':'anubis'), -8, -8); ctx.restore(); ctx.globalAlpha=1; }
+        ctx.drawImage(sprite((p.moving||G.arcadeFly)?'ball':'anubis'), -8, -8); ctx.restore(); ctx.globalAlpha=1; }
     }
   }
   // entrance pyramid (over the hidden hero): animates during intro, then a faint ghost
@@ -639,7 +659,6 @@ function renderPlay(ctx){
   ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
 
   ctx.restore();
-  if(G.arcadeFly) drawArcadeFly(ctx);   // full-screen warp interlude
   drawHUD(ctx);
 }
 
@@ -678,28 +697,6 @@ function drawFill(ctx, bx, by){
   }
 }
 
-// Warp interlude: hero streaks upward through a tunnel of rushing stars.
-function drawArcadeFly(ctx){
-  const P=PAL, tt=G.arcadeFly.t, cx=VW/2;
-  ctx.fillStyle=P.bg; ctx.fillRect(0,0,VW,VH);
-  // rushing star streaks (downward = hero flying up)
-  for(let i=0;i<40;i++){
-    const sx=(i*61)%VW, base=(i*89)%VH, sp=120+((i*37)%160);
-    const sy=(base + tt*sp) % VH, len=6+((i*13)%10);
-    ctx.globalAlpha=0.4+0.5*((i%5)/5);
-    ctx.fillStyle=(i%4===0)?P.gold:P.wallHi; ctx.fillRect(sx, sy, 1, len);
-  }
-  ctx.globalAlpha=1;
-  // hero flying up (feet down), gentle bob + upward speed lines
-  const hy=VH/2 + Math.sin(tt*6)*4;
-  ctx.strokeStyle=P.goldHi; ctx.lineWidth=1;
-  for(const off of [-6,-2,2,6]){ const g=ctx.createLinearGradient(0,hy,0,hy+30);
-    g.addColorStop(0,P.goldHi); g.addColorStop(1,'rgba(255,210,30,0)');
-    ctx.strokeStyle=g; ctx.beginPath(); ctx.moveTo(cx+off, hy+8); ctx.lineTo(cx+off, hy+30); ctx.stroke(); }
-  ctx.imageSmoothingEnabled=false; ctx.drawImage(sprite('ball'), Math.round(cx-8), Math.round(hy-8));
-  drawTextCentered(ctx, 'WARP', cx, VH/2-40, PAL.goldHi, 2);
-  drawTextCentered(ctx, 'GOLD  '+G.score, cx, VH/2+40, PAL.gold, 1);
-}
 
 // Spikes: base slab (with rivets) + triangular points that rise (amber) while
 // arming, then SNAP out (overshoot + white flash) when extended (lethal).
