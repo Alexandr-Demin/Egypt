@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706o';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706o';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706o';
-import { getState, patch, reset } from './state.js?v=20260706o';
-import * as sound from './sound.js?v=20260706o';
-import { generateLevel } from './levelgen.js?v=20260706o';
+import { LEVELS } from './levels.js?v=20260706p';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706p';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706p';
+import { getState, patch, reset } from './state.js?v=20260706p';
+import * as sound from './sound.js?v=20260706p';
+import { generateLevel } from './levelgen.js?v=20260706p';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -22,7 +22,7 @@ const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
 // at the wall it slides into — i.e. it always lands feet-first.
 const HERO_ANGLE = { down:0, left:Math.PI/2, up:Math.PI, right:-Math.PI/2 };
 const INTRO_DUR = 1.8;   // level-entrance: pyramid → door opens → hero appears → pyramid fades
-const EXIT_BTN = { id:'menu', x:3, y:4, w:18, h:16 };   // in-match "exit to menu" (HUD top-left)
+const EXIT_BTN = { id:'exit', x:3, y:4, w:18, h:16 };   // in-match "exit to menu" (HUD top-left)
 const inRect = (v,b) => v.x>=b.x && v.x<=b.x+b.w && v.y>=b.y && v.y<=b.y+b.h;
 
 const G = {
@@ -36,7 +36,7 @@ const G = {
   intro:null, startCell:null,
   particles:[], trail:[], shake:0, hs:0, flash:0, flashCol:'#fff',
   psx:1, psy:1, buttons:[], trans:null, dead:false, deadTimer:0,
-  dustTimer:0,
+  dustTimer:0, confirmExit:false,
 };
 
 // ---------------- lifecycle ----------------
@@ -71,7 +71,7 @@ function tick(dt){ update(dt); render(); }
 function startRun(i=0){ G.endless = false; G.score = 0; G.lives = 3; G.runStart = i; loadLevel(i); }
 
 function loadLevel(i){
-  G.levelIndex = i; G.dead = false; G.dir = null; G.lastCell = '';
+  G.levelIndex = i; G.dead = false; G.dir = null; G.lastCell = ''; G.confirmExit = false;
   G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
   parse(LEVELS[i]);
   G.scene = 'play';
@@ -90,7 +90,7 @@ function loadEndlessDepth(){
   const rows = lvl ? lvl.rows : LEVELS[0].map;          // fallback (never hit by construction)
   G.curMap = rows; G.curName = (lvl && lvl.name) || 'THE DESCENT';
   G.lives = 3;                                          // fresh lives each depth
-  G.dead = false; G.dir = null; G.lastCell = '';
+  G.dead = false; G.dir = null; G.lastCell = ''; G.confirmExit = false;
   G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
   parse({ map: rows, name: 'D' + G.depth + '  ' + G.curName });
   G.scene = 'play';
@@ -206,9 +206,9 @@ function bindInput(){
   let ds=null, fired=false;
   let dsOnExit=false;
   const down = (cx,cy)=>{ ds={x:cx,y:cy}; fired=false;
-    dsOnExit = G.scene==='play' && inRect(toVirtual(cx,cy), EXIT_BTN); };  // gesture started on exit btn
+    dsOnExit = G.scene==='play' && !G.confirmExit && inRect(toVirtual(cx,cy), EXIT_BTN); };  // gesture on exit btn
   const swipe = (cx,cy)=>{    // fire the direction the INSTANT the swipe crosses TH (mid-drag)
-    if(!ds || fired || dsOnExit || G.scene!=='play') return;   // don't move if the tap began on the exit btn
+    if(!ds || fired || dsOnExit || G.confirmExit || G.scene!=='play') return;   // no move on exit btn / while dialog open
     const dx=cx-ds.x, dy=cy-ds.y;
     if(Math.abs(dx)>TH || Math.abs(dy)>TH){
       setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')); fired=true;
@@ -217,7 +217,8 @@ function bindInput(){
   const up = (cx,cy)=>{
     if(!ds) return; const dx=cx-ds.x, dy=cy-ds.y, moved=Math.abs(dx)>TH||Math.abs(dy)>TH;
     const v=toVirtual(cx,cy);
-    if(dsOnExit){ if(inRect(v, EXIT_BTN)) onButton('menu'); }   // exit-to-menu tap (play scene)
+    if(G.confirmExit){ if(!moved) handleTap(v.x,v.y); }        // confirm dialog (YES/NO)
+    else if(dsOnExit){ if(inRect(v, EXIT_BTN)) onButton('exit'); }   // open the exit dialog
     else if(G.scene==='play'){ if(!fired && moved) setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')); }
     else if(!moved){ handleTap(v.x,v.y); }
     ds=null; fired=false; dsOnExit=false;
@@ -240,6 +241,9 @@ function onButton(id){
   if(id==='play') transition(()=>{ G.scene='select'; });            // PLAY → level select
   else if(id==='endless') transition(startEndless);                  // ENDLESS → generated descent
   else if(id==='retry') transition(()=> G.endless ? startEndless() : startRun(G.runStart||0));
+  else if(id==='exit') G.confirmExit = true;                        // open in-match confirm dialog
+  else if(id==='confirmNo') G.confirmExit = false;                  // stay in the match
+  else if(id==='confirmYes'){ G.confirmExit = false; transition(()=>{ G.scene='title'; }); } // leave
   else if(id==='continue') nextLevel();                             // result screen → advance
   else if(id && id.startsWith('lvl')) transition(()=>startRun(+id.slice(3)));  // pick a level card
   else if(id==='menu') transition(()=>{ G.scene='title'; });
@@ -276,6 +280,7 @@ function update(dt){
   if(G.trans){ updateTransition(dt); }
 
   if(G.scene!=='play'){ if(G.scene==='result' && G.result) G.result.t += dt; return; }
+  if(G.confirmExit) return;   // frozen behind the exit-confirm dialog
   if(G.intro!==null){ G.intro+=dt; if(G.intro>=INTRO_DUR) G.intro=null; if(G.player) updateCamera(dt); return; } // entrance intro
   if(G.hs>0){ G.hs-=dt; return; }     // hit-stop freezes the world
   if(G.dead){ G.deadTimer-=dt; if(G.deadTimer<=0) respawnOrEnd(); if(G.player) updateCamera(dt); return; }
@@ -407,7 +412,7 @@ function render(){
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0,
     depth:G.endless?G.depth:null, bestDepth:getState()?.progress?.bestDepth||0}); }
-  else { renderPlay(ctx); G.buttons=[EXIT_BTN]; }
+  else { renderPlay(ctx); G.buttons = G.confirmExit ? drawConfirm(ctx) : [EXIT_BTN]; }
 
   // flash overlay
   if(G.flash>0){ ctx.globalAlpha=Math.min(0.6,G.flash); ctx.fillStyle=G.flashCol; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1; }
@@ -644,6 +649,25 @@ function drawEntrance(ctx, bx, by){
   ctx.globalAlpha=pyrA*0.9*dOpen; ctx.fillStyle=PAL.goldHi;
   ctx.fillRect(cx-dw/2, base-Math.round(dh*dOpen), dw, Math.round(dh*dOpen)); // light pours up
   ctx.restore();
+}
+
+// simple bordered dialog button (label centred)
+function dlgBtn(ctx, b, label, col){
+  ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(b.x+0.5, b.y+0.5, b.w-1, b.h-1);
+  drawTextCentered(ctx, label, b.x+b.w/2, b.y+(b.h-7)/2, col, 1);
+}
+// in-match exit confirmation: dims the frozen board, asks to leave.
+function drawConfirm(ctx){
+  ctx.globalAlpha=0.68; ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1;
+  const pw=168, ph=76, px=Math.round((VW-pw)/2), py=Math.round((VH-ph)/2);
+  ctx.fillStyle=PAL.blackD; ctx.fillRect(px,py,pw,ph);
+  ctx.strokeStyle=PAL.wallEdge; ctx.lineWidth=1; ctx.strokeRect(px+0.5,py+0.5,pw-1,ph-1);
+  drawTextCentered(ctx, 'EXIT TO MENU?', VW/2, py+18, PAL.gold, 1);
+  const no ={ id:'confirmNo',  x:px+14,    y:py+44, w:64, h:22 };
+  const yes={ id:'confirmYes', x:px+pw-78, y:py+44, w:64, h:22 };
+  dlgBtn(ctx, no,  'STAY', PAL.goldHi);
+  dlgBtn(ctx, yes, 'EXIT', PAL.red);
+  return [no, yes];
 }
 
 function drawHUD(ctx){
