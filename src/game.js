@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706k';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706k';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706k';
-import { getState, patch, reset } from './state.js?v=20260706k';
-import * as sound from './sound.js?v=20260706k';
-import { generateLevel } from './levelgen.js?v=20260706k';
+import { LEVELS } from './levels.js?v=20260706l';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706l';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706l';
+import { getState, patch, reset } from './state.js?v=20260706l';
+import * as sound from './sound.js?v=20260706l';
+import { generateLevel } from './levelgen.js?v=20260706l';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -365,8 +365,12 @@ function showResult(){
 function respawnOrEnd(){
   if(G._won){ G._won=false; showResult(); return; }
   if(G.lives<=0){ (G.endless?saveBestDepth:saveBest)(); transition(()=>{ G.scene='gameover'; }); }
-  else { parse(G.endless ? { map:G.curMap, name:'D'+G.depth+'  '+G.curName } : LEVELS[G.levelIndex]);
-    G.dead=false; G.dir=null; G.lastCell=''; G.trail.length=0; }
+  else {
+    const keptCoins = G.coins, keptLeft = G.coinsLeft;   // coins already collected stay collected
+    parse(G.endless ? { map:G.curMap, name:'D'+G.depth+'  '+G.curName } : LEVELS[G.levelIndex]);
+    G.coins = keptCoins; G.coinsLeft = keptLeft;          // only the uncollected coins remain
+    G.dead=false; G.dir=null; G.lastCell=''; G.trail.length=0;
+  }
 }
 
 // ---------------- particles / fx ----------------
