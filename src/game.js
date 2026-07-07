@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706n';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706n';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706n';
-import { getState, patch, reset } from './state.js?v=20260706n';
-import * as sound from './sound.js?v=20260706n';
-import { generateLevel } from './levelgen.js?v=20260706n';
+import { LEVELS } from './levels.js?v=20260706o';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706o';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706o';
+import { getState, patch, reset } from './state.js?v=20260706o';
+import * as sound from './sound.js?v=20260706o';
+import { generateLevel } from './levelgen.js?v=20260706o';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -22,6 +22,8 @@ const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
 // at the wall it slides into — i.e. it always lands feet-first.
 const HERO_ANGLE = { down:0, left:Math.PI/2, up:Math.PI, right:-Math.PI/2 };
 const INTRO_DUR = 1.8;   // level-entrance: pyramid → door opens → hero appears → pyramid fades
+const EXIT_BTN = { id:'menu', x:3, y:4, w:18, h:16 };   // in-match "exit to menu" (HUD top-left)
+const inRect = (v,b) => v.x>=b.x && v.x<=b.x+b.w && v.y>=b.y && v.y<=b.y+b.h;
 
 const G = {
   canvas:null, ctx:null, scene:'title', t:0, last:0,
@@ -202,9 +204,11 @@ function bindInput(){
   });
   const TH=8;                 // swipe threshold (px) — small = very responsive
   let ds=null, fired=false;
-  const down = (cx,cy)=>{ ds={x:cx,y:cy}; fired=false; };
+  let dsOnExit=false;
+  const down = (cx,cy)=>{ ds={x:cx,y:cy}; fired=false;
+    dsOnExit = G.scene==='play' && inRect(toVirtual(cx,cy), EXIT_BTN); };  // gesture started on exit btn
   const swipe = (cx,cy)=>{    // fire the direction the INSTANT the swipe crosses TH (mid-drag)
-    if(!ds || fired || G.scene!=='play') return;
+    if(!ds || fired || dsOnExit || G.scene!=='play') return;   // don't move if the tap began on the exit btn
     const dx=cx-ds.x, dy=cy-ds.y;
     if(Math.abs(dx)>TH || Math.abs(dy)>TH){
       setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')); fired=true;
@@ -212,9 +216,11 @@ function bindInput(){
   };
   const up = (cx,cy)=>{
     if(!ds) return; const dx=cx-ds.x, dy=cy-ds.y, moved=Math.abs(dx)>TH||Math.abs(dy)>TH;
-    if(G.scene==='play'){ if(!fired && moved) setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')); }
-    else if(!moved){ const v=toVirtual(cx,cy); handleTap(v.x,v.y); }
-    ds=null; fired=false;
+    const v=toVirtual(cx,cy);
+    if(dsOnExit){ if(inRect(v, EXIT_BTN)) onButton('menu'); }   // exit-to-menu tap (play scene)
+    else if(G.scene==='play'){ if(!fired && moved) setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')); }
+    else if(!moved){ handleTap(v.x,v.y); }
+    ds=null; fired=false; dsOnExit=false;
   };
   const cv = G.canvas;
   cv.addEventListener('pointerdown', e=>down(e.clientX,e.clientY));
@@ -401,7 +407,7 @@ function render(){
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0,
     depth:G.endless?G.depth:null, bestDepth:getState()?.progress?.bestDepth||0}); }
-  else { G.buttons=[]; renderPlay(ctx); }
+  else { renderPlay(ctx); G.buttons=[EXIT_BTN]; }
 
   // flash overlay
   if(G.flash>0){ ctx.globalAlpha=Math.min(0.6,G.flash); ctx.fillStyle=G.flashCol; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1; }
@@ -647,8 +653,15 @@ function drawHUD(ctx){
     if(h2(x*1.7+3, HUD_H)>0.22){ ctx.fillStyle=h2(x,9)>0.55?PAL.wallEdge:PAL.wallHi; ctx.fillRect(x, HUD_H-1, 1,1); }
     if(h2(x*1.9+5, HUD_H+1)>0.55){ ctx.fillStyle=PAL.wall; ctx.fillRect(x, HUD_H-2, 1,1); }
   }
-  // hearts
-  for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 6+i*10, 8);
+  // exit-to-menu button (top-left) — dotted frame + gold left-chevron
+  const eb=EXIT_BTN;
+  for(let i=0;i<eb.w;i++){ if(h2(eb.x+i,eb.y)>0.2){ ctx.fillStyle=PAL.wallHi; ctx.fillRect(eb.x+i,eb.y,1,1); ctx.fillRect(eb.x+i,eb.y+eb.h-1,1,1); } }
+  for(let j=0;j<eb.h;j++){ if(h2(eb.x,eb.y+j)>0.2){ ctx.fillStyle=PAL.wallHi; ctx.fillRect(eb.x,eb.y+j,1,1); ctx.fillRect(eb.x+eb.w-1,eb.y+j,1,1); } }
+  ctx.fillStyle=PAL.gold;                                   // "‹" chevron
+  ctx.fillRect(eb.x+11,eb.y+4,2,2); ctx.fillRect(eb.x+9,eb.y+6,2,2); ctx.fillRect(eb.x+7,eb.y+8,2,2);
+  ctx.fillRect(eb.x+9,eb.y+10,2,2); ctx.fillRect(eb.x+11,eb.y+12,2,2);
+  // hearts (shifted right to clear the exit button)
+  for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 26+i*10, 8);
   // level name
   drawTextCentered(ctx, G.levelName, VW/2, 7, PAL.goldHi, 1);
   // score (right)
