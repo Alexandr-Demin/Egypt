@@ -178,9 +178,56 @@ const HOLLOW_LABYRINTH = [
   '#############',
 ];
 
+// Editor-authored trap chamber: a patrolling mummy (X) + a vertical laser gate (|).
+// Validated: solvable, 0 traps, P grounded, all 69 coins reachable, ~14 swipes.
+// Note: the mummy must be TIMED (not walked around) — that's intended here.
+const TRAPPED_TOMB = [
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '##E##########',
+  '##.##########',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##oooooo#####',
+  '###o...o#####',
+  '###o...o#####',
+  '###o..Xo#####',
+  '###ooooo#####',
+  '###o#########',
+  '###oooooo####',
+  '########o####',
+  '###oooo#o####',
+  '###o.|o#o####',
+  '###o##o#o####',
+  '###o##ooo####',
+  '###o#########',
+  '#ooooooooooo#',
+  '#o#o#######o#',
+  '#o#o###...#o#',
+  '#ooo###.Pooo#',
+  '#############',
+];
+
 export const LEVELS = [
   { name: 'CURSED TOMB',      map: CURSED_TOMB },
   { name: 'HOLLOW LABYRINTH', map: HOLLOW_LABYRINTH },
+  { name: 'TRAPPED TOMB',     map: TRAPPED_TOMB },
   { name: 'PILLAR HALLS',     map: L2 },
   { name: 'GUARDIAN CRYPT',   map: L3 },
 ];
