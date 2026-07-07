@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707g';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707g';
-import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707g';
-import { getState, patch, reset } from './state.js?v=20260707g';
-import * as sound from './sound.js?v=20260707g';
-import { generateLevel } from './levelgen.js?v=20260707g';
+import { LEVELS } from './levels.js?v=20260707h';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707h';
+import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707h';
+import { getState, patch, reset } from './state.js?v=20260707h';
+import * as sound from './sound.js?v=20260707h';
+import { generateLevel } from './levelgen.js?v=20260707h';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -79,7 +79,7 @@ export function startGame(canvas){
     starsTotal:()=>G.starsTotal, starsLeft:()=>G.stars?G.stars.size:0,
     arcade:()=>({on:G.arcade, depth:G.arcadeDepth, fillY:G.fill?Math.round(G.fill.y):null,
       fillSpeed:G.fill?G.fill.speed:null, fly:!!G.arcadeFly, score:G.score, name:G.levelName,
-      intro:G.intro, hasStartCell:!!G.startCell}),
+      intro:G.intro, hasStartCell:!!G.startCell, heroAngle:G.heroAngle}),
     win:()=>{ if(G.scene==='play' && G.player && !G.dead) exitReached(); },   // QA: trigger exit/fly
   };
 }
@@ -388,7 +388,8 @@ function update(dt){
     } else {                                            // 'in' — rise onto the start (bottom-up)
       p.fy-=step; p.fx=w.tx; G.heroAngle=HERO_ANGLE.up;
       if(p.fy<=w.ty){ p.fy=w.ty; p.fx=w.tx; p.cx=w.tx; p.cy=w.ty; p.moving=false;
-        G.lastCell=w.tx+','+w.ty; G.arcadeFly=null; }   // landed — resume play
+        G.lastCell=w.tx+','+w.ty; G.arcadeFly=null;
+        G.dir=null; G.heroAngle=0; }                    // landed — stand upright on the start, resume play
     }
     if(G.player) updateCamera(dt); return;
   }
@@ -651,8 +652,8 @@ function renderPlay(ctx){
     ctx.fillStyle=pt.color; ctx.fillRect(Math.round(bx+pt.x),Math.round(by+pt.y),pt.size,pt.size); }
   ctx.globalAlpha=1;
 
-  // arcade rising flood (world-space; the camera carries it)
-  if(G.arcade && G.fill) drawFill(ctx, bx, by);
+  // arcade rising flood (world-space; the camera carries it) — hidden during a warp
+  if(G.arcade && G.fill && !G.arcadeFly) drawFill(ctx, bx, by);
 
   // vignette
   const vg=ctx.createRadialGradient(VW/2,VH/2,60,VW/2,VH/2,160);
