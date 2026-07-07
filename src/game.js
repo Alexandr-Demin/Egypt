@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707b';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707b';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707b';
-import { getState, patch, reset } from './state.js?v=20260707b';
-import * as sound from './sound.js?v=20260707b';
-import { generateLevel } from './levelgen.js?v=20260707b';
+import { LEVELS } from './levels.js?v=20260707c';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707c';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707c';
+import { getState, patch, reset } from './state.js?v=20260707c';
+import * as sound from './sound.js?v=20260707c';
+import { generateLevel } from './levelgen.js?v=20260707c';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -219,6 +219,15 @@ function saveBestDepth(){
   const bestDepth = Math.max(s?.progress?.bestDepth||0, G.depth);
   patch({ progress: { ...(s.progress||{}), best, bestDepth } });
 }
+// Level gating: level 1 is always open; each cleared level unlocks the next.
+// A level counts as cleared once it has a stars entry (written on result), so
+// this also auto-migrates older saves — previously cleared levels stay open.
+function unlockedCount(){
+  const stars = getState()?.progress?.stars || {};
+  const cleared = Object.keys(stars).map(Number).filter(n=>!Number.isNaN(n));
+  const maxCleared = cleared.length ? Math.max(...cleared) : -1;
+  return Math.max(1, Math.min(LEVELS.length, maxCleared + 2));
+}
 
 // ---------------- input ----------------
 function bindInput(){
@@ -270,7 +279,8 @@ function onButton(id){
   else if(id==='confirmNo') G.confirmExit = false;                  // stay in the match
   else if(id==='confirmYes'){ G.confirmExit = false; transition(()=>{ G.scene='title'; }); } // leave
   else if(id==='continue') nextLevel();                             // result screen → advance
-  else if(id && id.startsWith('lvl')) transition(()=>startRun(+id.slice(3)));  // pick a level card
+  else if(id && id.startsWith('lvl')){ const i=+id.slice(3);           // pick a level card
+    if(i>=0 && i<unlockedCount()) transition(()=>startRun(i)); }        // ignore locked picks
   else if(id==='menu') transition(()=>{ G.scene='title'; });
   else if(id==='settings') transition(()=>{ G.scene='menu'; });
   else if(id==='sound') sound.setEnabled(!sound.isEnabled());          // toggle, stay on menu
@@ -456,7 +466,7 @@ function render(){
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, bestDepth:getState()?.progress?.bestDepth||0}); }
-  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:LEVELS.length, stars:getState()?.progress?.stars||{}}); }
+  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:unlockedCount(), stars:getState()?.progress?.stars||{}}); }
   else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }

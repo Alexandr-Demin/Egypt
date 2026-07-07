@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707b';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707c';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -58,6 +58,17 @@ function starPath(ctx, cx, cy, r){
 function starOutline(ctx, cx, cy, r, col){ ctx.strokeStyle=col; ctx.lineWidth=1; starPath(ctx,cx,cy,r); ctx.stroke(); }
 function starFilled(ctx, cx, cy, r, col){ ctx.fillStyle=col; starPath(ctx,cx,cy,r); ctx.fill(); }
 
+// Padlock centred on (cx,cy) — drawn on locked level cards. Dim crimson so it
+// reads as "sealed" against the void.
+function drawLock(ctx, cx, cy){
+  const bw=10, bh=8, bx=cx-bw/2, by=cy-1;
+  ctx.strokeStyle=PAL.wallHi; ctx.lineWidth=2;                 // shackle
+  ctx.beginPath(); ctx.arc(cx, by, 3.5, Math.PI, 0); ctx.stroke();
+  ctx.fillStyle=PAL.wall;   ctx.fillRect(bx, by, bw, bh);      // body
+  ctx.fillStyle=PAL.wallHi; ctx.fillRect(bx, by, bw, 1);       // top light
+  ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-1, by+2, 2, 4);    // keyhole
+}
+
 // Level-select: a 2×5 grid of big cards, each with its number and three hollow
 // stars. The first `unlocked` cards are selectable (return button rects); the
 // rest are drawn semi-transparent and are not tappable.
@@ -78,11 +89,12 @@ export function renderSelect(ctx, VW, VH, t, data){
     frame(ctx, x, y, CW, CH);
     drawTextCentered(ctx, String(i+1), x+CW/2, y+5, avail?PAL.gold:PAL.wallHi, 3);
     const scx = x+CW/2, sy = y+CH-9, earned = (data && data.stars && data.stars[i]) || 0;
-    for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*13;
-      if(avail && s<earned) starFilled(ctx, sx2, sy, 5, PAL.gold);
-      else starOutline(ctx, sx2, sy, 5, avail?PAL.goldHi:PAL.wallHi); }
+    if(avail) for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*13;     // stars only on open cards
+      if(s<earned) starFilled(ctx, sx2, sy, 5, PAL.gold);
+      else starOutline(ctx, sx2, sy, 5, PAL.goldHi); }
     ctx.restore();
     if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
+    else drawLock(ctx, x+CW/2, y+CH-10);                            // locked: padlock instead of stars
   }
   const back = { id:'menu', x:VW/2-30, y:266, w:60, h:13 };
   frameBtn(ctx, back, 'BACK', 1);
