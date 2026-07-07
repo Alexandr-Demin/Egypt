@@ -51,25 +51,25 @@ const CURSED_TOMB = [
   '#############',
 ];
 
-// Hand-authored in the editor: a long winding labyrinth with hand-placed coins.
-// Validated: solvable, 0 traps, P grounded, all 128 coins reachable, ~36 swipes.
-const HOLLOW_LABYRINTH = [
+// Level 2 — "lvl_2" (editor-authored). Validated: solvable, 0 traps, P grounded,
+// all 71 coins reachable, ~22 swipes.
+const LVL_2 = [
   '#############',
-  '#E#ooooooooo#',
-  '#o#o#######o#',
-  '#o#o#######o#',
-  '#ooo######oo#',
-  '#oo#######o##',
-  '##########o##',
-  '##########o##',
-  '#oooooooooo##',
-  '#o###########',
-  '#ooooo#######',
-  '#####ooooo###',
-  '#########o###',
-  '######oooo###',
-  '######o#oo###',
-  '######o#oo###',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '######E######',
   '######o######',
   '######oooooo#',
   '###########o#',
@@ -96,10 +96,9 @@ const HOLLOW_LABYRINTH = [
   '#############',
 ];
 
-// Editor-authored trap chamber: a patrolling mummy (X) + a vertical laser gate (|).
+// Level 3 — "lvl_3" (editor-authored): a patrolling mummy (X), timed passage.
 // Validated: solvable, 0 traps, P grounded, all 65 coins reachable, ~14 swipes.
-// Note: the mummy must be TIMED (not walked around) — that's intended here.
-const TRAPPED_TOMB = [
+const LVL_3 = [
   '#############',
   '#############',
   '#############',
@@ -133,7 +132,7 @@ const TRAPPED_TOMB = [
   '###oooo#o####',
   '###o..o#o####',
   '###o##...####',
-  '###o##|.o####',
+  '###o##..o####',
   '###o#########',
   '#ooooooooooo#',
   '#o#o#######o#',
@@ -142,8 +141,54 @@ const TRAPPED_TOMB = [
   '#############',
 ];
 
+// Level 4 — "lvl_4" (editor-authored). Validated: solvable, 0 traps, P grounded,
+// all 76 coins reachable, ~28 swipes.
+const LVL_4 = [
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '######ooo####',
+  '######o#E####',
+  '######o######',
+  '######o######',
+  '######oooooo#',
+  '###########o#',
+  '###########o#',
+  '###########o#',
+  '##oooooooooo#',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##oooo#######',
+  '#####.oo#####',
+  '#######o#####',
+  '###ooooo#####',
+  '#ooo#########',
+  '#o###########',
+  '#o#ooooooooo#',
+  '#o#o######.o#',
+  '#o#o####oooo#',
+  '#ooo####o####',
+  '####...#oooo#',
+  '#..#.#.####o#',
+  '#P...#...ooo#',
+  '#############',
+];
+
 export const LEVELS = [
-  { name: 'CURSED TOMB',      map: CURSED_TOMB },
-  { name: 'HOLLOW LABYRINTH', map: HOLLOW_LABYRINTH },
-  { name: 'TRAPPED TOMB',     map: TRAPPED_TOMB },
+  { name: 'CURSED TOMB', map: CURSED_TOMB },
+  { name: 'lvl_2',       map: LVL_2 },
+  { name: 'lvl_3',       map: LVL_3 },
+  { name: 'lvl_4',       map: LVL_4 },
 ];
