@@ -1,6 +1,6 @@
 // =========== SANDSLIDE — level maps ===========
 // Legend:  # wall   (space)/. empty floor   o coin (hand-placed)   P start
-//          E exit(sarcophagus)   X mummy (horizontal patrol)
+//          E exit(sarcophagus)   X mummy (horizontal patrol)   F pufferfish (3x3, puffs)
 //          ^ v < > spikes facing up/down/left/right (extend 0.5s after a touch)
 //          = laser gate (horizontal beam)   | laser gate (vertical beam)
 // Coins: if a map contains any 'o', those are the exact coins; otherwise the game

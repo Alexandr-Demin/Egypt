@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706u';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706u';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706u';
-import { getState, patch, reset } from './state.js?v=20260706u';
-import * as sound from './sound.js?v=20260706u';
-import { generateLevel } from './levelgen.js?v=20260706u';
+import { LEVELS } from './levels.js?v=20260706v';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706v';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706v';
+import { getState, patch, reset } from './state.js?v=20260706v';
+import * as sound from './sound.js?v=20260706v';
+import { generateLevel } from './levelgen.js?v=20260706v';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -18,6 +18,17 @@ const LASER_FIRE   = 0.5;                       // lethal window (s)
 const LASER_PERIOD = LASER_CHARGE + LASER_FIRE; // full charge→fire cycle
 const SPIKE_ARM = 0.5;                          // delay after touch before spikes extend (s)
 const SPIKE_UP  = 0.8;                          // how long extended spikes stay out (s)
+// pufferfish cycle: idle (small) → inflate → puffed (lethal 3x3) → deflate
+const PUFF_IDLE=2.5, PUFF_INFLATE=0.6, PUFF_HOLD=0.8, PUFF_DEFLATE=0.5;
+const PUFF_PERIOD = PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD+PUFF_DEFLATE;
+// inflation 0..1 for a given (offset) clock; lethal when >= 0.9
+function puffInflation(tt){
+  const p = ((tt % PUFF_PERIOD) + PUFF_PERIOD) % PUFF_PERIOD;
+  if(p < PUFF_IDLE) return 0;
+  if(p < PUFF_IDLE+PUFF_INFLATE) return (p-PUFF_IDLE)/PUFF_INFLATE;
+  if(p < PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD) return 1;
+  return 1 - (p-(PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD))/PUFF_DEFLATE;
+}
 
 const DIRS = { left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] };
 // Hero orientation: the sprite (feet at its bottom) is rotated so the feet point
@@ -32,7 +43,7 @@ const G = {
   levelIndex:0, score:0, lives:3, levelName:'',
   endless:false, depth:1, runSeed:1, curMap:null, curName:'',
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, coinsTotal:0, exitPos:{x:0,y:0},
-  lasers:[], laserCells:null, spikes:null, result:null,
+  lasers:[], laserCells:null, spikes:null, puffers:[], result:null,
   boardX:0, boardY:0, fvar:[], wvar:[],
   player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
   intro:null, startCell:null,
@@ -103,6 +114,7 @@ function parse(def){
   G.ROWS = rows.length; G.COLS = Math.max(...rows.map(r=>r.length));
   G.grid = []; G.coins = new Set(); G.coinsLeft = 0; G.enemies = []; G.fvar = []; G.wvar = [];
   G.spikes = new Map();                   // 'x,y' -> {phase:'idle'|'armed'|'up', t}
+  G.puffers = [];                         // pufferfish {x,y,off}
   const manualCoins = new Set();          // 'o' cells authored on the map (if any)
   const laserEmitters = [];               // '='/'|' beam-gate emitters
   for(let y=0;y<G.ROWS;y++){
@@ -118,6 +130,7 @@ function parse(def){
       else if(ch==='o') manualCoins.add(x+','+y);   // hand-placed coin (walkable floor)
       else if(ch==='=') laserEmitters.push({x,y,axis:'h'});   // horizontal beam gate
       else if(ch==='|') laserEmitters.push({x,y,axis:'v'});   // vertical beam gate
+      else if(ch==='F') G.puffers.push({x,y,off:((x*7+y*13)%10)/10*PUFF_PERIOD});  // pufferfish (staggered)
       if(ch==='P') G.player={cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false};
       if(ch==='X') G.enemies.push({cx:x,cy:y,fx:x,fy:y,tx:x,ty:y,moving:false,axis:'h',d:1});
       G.grid[y][x]=t;
@@ -326,6 +339,14 @@ function update(dt){
     }
   }
 
+  // pufferfish — when fully puffed, lethal across its 3x3
+  if(G.puffers && G.puffers.length && !G.dead && p){
+    const px=Math.round(p.fx), py=Math.round(p.fy);
+    for(const f of G.puffers){
+      if(puffInflation(G.t+f.off) >= 0.9 && Math.abs(px-f.x)<=1 && Math.abs(py-f.y)<=1){ die(); return; }
+    }
+  }
+
   // enemies
   for(const e of G.enemies){
     if(!e.moving){
@@ -477,6 +498,7 @@ function renderPlay(ctx){
 
   // lasers (charge telegraph → lethal flash)
   drawLasers(ctx, bx, by);
+  drawPuffers(ctx, bx, by);   // pufferfish (inflate/deflate)
 
   // enemies
   for(const e of G.enemies){ const px=Math.round(bx+e.fx*TILE), py=Math.round(by+e.fy*TILE+Math.sin(G.t*6+e.cx));
@@ -527,60 +549,107 @@ function renderPlay(ctx){
   drawHUD(ctx);
 }
 
-// Spikes: flat base when idle; points rise (amber) while arming, then snap to
-// full steel when extended (lethal).
+// Spikes: base slab (with rivets) + triangular points that rise (amber) while
+// arming, then SNAP out (overshoot + white flash) when extended (lethal).
 function drawSpikes(ctx, bx, by){
   if(!G.spikes || !G.spikes.size) return;
   const P=PAL;
   for(const [k,sp] of G.spikes){
     const [x,y]=k.split(',').map(Number);
     const px=Math.round(bx+x*TILE), py=Math.round(by+y*TILE);
-    let h=0, col=P.steel, hi=P.steelHi;
-    if(sp.phase==='armed'){ h=1-Math.max(0,sp.t/SPIKE_ARM); col=P.gold; hi=P.goldHi; }  // rising warning
-    else if(sp.phase==='up'){ h=1; col=P.steelHi; hi=P.white; }                          // extended = lethal
-    drawSpikeGfx(ctx, px, py, sp.dir||'up', h, col, hi);
+    let h=0, col=P.steel, hi=P.steelHi, snap=0;
+    if(sp.phase==='armed'){ h=1-Math.max(0,sp.t/SPIKE_ARM); col=P.gold; hi=P.goldHi; }
+    else if(sp.phase==='up'){ h=1; col=P.steel; hi=P.white; snap=Math.max(0,1-(SPIKE_UP-sp.t)/0.14); }
+    drawSpikeGfx(ctx, px, py, sp.dir||'up', h, col, hi, snap);
   }
 }
-// base slab on the anchoring wall edge + points growing inward by `h` (0..1)
-function drawSpikeGfx(ctx, px, py, dir, h, col, hi){
-  const P=PAL, L=Math.max(1,Math.round(7*h)), pos=[2,6,10,13];
-  if(dir==='down'){
-    ctx.fillStyle=P.stoneD; ctx.fillRect(px,py,TILE,5); ctx.fillStyle=P.stone; ctx.fillRect(px,py+4,TILE,1);
-    if(h>0) for(const X of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+X-1,py+5,3,L); ctx.fillStyle=col;ctx.fillRect(px+X,py+5,1,L); ctx.fillStyle=hi;ctx.fillRect(px+X,py+5+L-1,1,1); }
-  } else if(dir==='left'){
-    ctx.fillStyle=P.stoneD; ctx.fillRect(px+11,py,5,TILE); ctx.fillStyle=P.stone; ctx.fillRect(px+11,py,1,TILE);
-    if(h>0) for(const Y of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+11-L,py+Y-1,L,3); ctx.fillStyle=col;ctx.fillRect(px+11-L,py+Y,L,1); ctx.fillStyle=hi;ctx.fillRect(px+11-L,py+Y,1,1); }
-  } else if(dir==='right'){
-    ctx.fillStyle=P.stoneD; ctx.fillRect(px,py,5,TILE); ctx.fillStyle=P.stone; ctx.fillRect(px+4,py,1,TILE);
-    if(h>0) for(const Y of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+5,py+Y-1,L,3); ctx.fillStyle=col;ctx.fillRect(px+5,py+Y,L,1); ctx.fillStyle=hi;ctx.fillRect(px+5+L-1,py+Y,1,1); }
-  } else { // up
-    ctx.fillStyle=P.stoneD; ctx.fillRect(px,py+11,TILE,5); ctx.fillStyle=P.stone; ctx.fillRect(px,py+11,TILE,1);
-    if(h>0) for(const X of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+X-1,py+11-L,3,L); ctx.fillStyle=col;ctx.fillRect(px+X,py+11-L,1,L); ctx.fillStyle=hi;ctx.fillRect(px+X,py+11-L,1,1); }
-  }
+function drawSpikeGfx(ctx, px, py, dir, h, col, hi, snap){
+  const P=PAL, L=Math.max(1, Math.round(7*h*(1+(snap||0)*0.6))), flash=(snap||0)>0.5, pos=[3,8,13];
+  const spike=(bxc,byc,dx,dy)=>{                    // base centre → triangular point along (dx,dy)
+    const pxu=-dy*2, pyu=dx*2, ax=bxc+dx*L, ay=byc+dy*L;
+    ctx.fillStyle=flash?P.white:col;
+    ctx.beginPath(); ctx.moveTo(bxc+pxu,byc+pyu); ctx.lineTo(bxc-pxu,byc-pyu); ctx.lineTo(ax,ay); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=P.steelD; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(bxc-pxu,byc-pyu); ctx.lineTo(ax,ay); ctx.stroke();
+    ctx.fillStyle=P.white; ctx.fillRect(Math.round(ax),Math.round(ay),1,1);
+  };
+  const rivet=(rx,ry)=>{ ctx.fillStyle=P.steelD; ctx.fillRect(rx,ry,1,1); };
+  if(dir==='down'){ ctx.fillStyle=P.stoneD;ctx.fillRect(px,py,TILE,5);ctx.fillStyle=P.stone;ctx.fillRect(px,py+4,TILE,1);rivet(px+3,py+2);rivet(px+12,py+2);
+    if(h>0) for(const X of pos) spike(px+X,py+5,0,1); }
+  else if(dir==='left'){ ctx.fillStyle=P.stoneD;ctx.fillRect(px+11,py,5,TILE);ctx.fillStyle=P.stone;ctx.fillRect(px+11,py,1,TILE);rivet(px+13,py+3);rivet(px+13,py+12);
+    if(h>0) for(const Y of pos) spike(px+11,py+Y,-1,0); }
+  else if(dir==='right'){ ctx.fillStyle=P.stoneD;ctx.fillRect(px,py,5,TILE);ctx.fillStyle=P.stone;ctx.fillRect(px+4,py,1,TILE);rivet(px+2,py+3);rivet(px+2,py+12);
+    if(h>0) for(const Y of pos) spike(px+5,py+Y,1,0); }
+  else { ctx.fillStyle=P.stoneD;ctx.fillRect(px,py+11,TILE,5);ctx.fillStyle=P.stone;ctx.fillRect(px,py+11,TILE,1);rivet(px+3,py+13);rivet(px+12,py+13);
+    if(h>0) for(const X of pos) spike(px+X,py+11,0,-1); }
 }
 
-// Laser beam-gates: faint line that intensifies while charging, then a bright
-// red lethal flash. Emitter node glows white on fire.
+// Laser beam-gates: energy fills outward from the emitter while charging (sparks
+// spiral in, pre-fire pulse), then a layered lethal beam (glow · red · white core
+// + crackle). Emitter goes white-hot on fire.
 function drawLasers(ctx, bx, by){
   if(!G.lasers || !G.lasers.length) return;
-  const phase = G.t % LASER_PERIOD, firing = phase >= LASER_CHARGE, charge = Math.min(1, phase/LASER_CHARGE);
+  const P=PAL, phase=G.t%LASER_PERIOD, firing=phase>=LASER_CHARGE, charge=Math.min(1,phase/LASER_CHARGE);
   for(const L of G.lasers){
+    const hz=L.axis==='h', ex=Math.round(bx+L.x*TILE+8), ey=Math.round(by+L.y*TILE+8);
     for(const [cx,cy] of L.cells){
       const px=Math.round(bx+cx*TILE), py=Math.round(by+cy*TILE);
       if(firing){
-        ctx.globalAlpha=0.9; ctx.fillStyle=PAL.red;
-        if(L.axis==='h') ctx.fillRect(px, py+6, TILE, 4); else ctx.fillRect(px+6, py, 4, TILE);
-        ctx.globalAlpha=0.5; ctx.fillStyle=PAL.redHi;
-        if(L.axis==='h') ctx.fillRect(px, py+7, TILE, 2); else ctx.fillRect(px+7, py, 2, TILE);
+        const ft=(phase-LASER_CHARGE)/LASER_FIRE, fade=1-ft*0.35;
+        ctx.globalAlpha=0.30*fade; ctx.fillStyle=P.laserGlow; if(hz)ctx.fillRect(px,py+3,TILE,10);else ctx.fillRect(px+3,py,10,TILE);
+        ctx.globalAlpha=0.95*fade; ctx.fillStyle=P.laserHot;  if(hz)ctx.fillRect(px,py+6,TILE,4); else ctx.fillRect(px+6,py,4,TILE);
+        ctx.globalAlpha=fade;      ctx.fillStyle=P.laserCore; if(hz)ctx.fillRect(px,py+7,TILE,2); else ctx.fillRect(px+7,py,2,TILE);
+        ctx.globalAlpha=fade; ctx.fillStyle=P.white;
+        for(let k=1;k<TILE;k+=2){ if(h2(cx*7+cy*3+k, Math.floor(G.t*45))>0.62){ if(hz)ctx.fillRect(px+k,py+(h2(k,cy)>0.5?5:9),1,1); else ctx.fillRect(px+(h2(k,cx)>0.5?5:9),py+k,1,1); } }
       } else {
-        const w = 1 + Math.round(charge*2);
-        ctx.globalAlpha = 0.12 + 0.55*charge; ctx.fillStyle = PAL.red;
-        if(L.axis==='h') ctx.fillRect(px, py+8-(w>>1), TILE, w); else ctx.fillRect(px+8-(w>>1), py, w, TILE);
+        const d=hz?Math.abs(cx-L.x):Math.abs(cy-L.y);
+        if(d > charge*L.cells.length+0.4) continue;               // fill outward from emitter
+        const near=charge>0.75, pf=near?(Math.sin(G.t*38)*0.5+0.5):0, w=1+Math.round(charge*2+pf*2);
+        ctx.globalAlpha=0.12+0.5*charge+pf*0.3; ctx.fillStyle=near?P.laserHot:P.wall;
+        if(hz)ctx.fillRect(px,py+8-(w>>1),TILE,w); else ctx.fillRect(px+8-(w>>1),py,w,TILE);
+        if(h2(cx*5+cy, Math.floor(G.t*28))>0.72-charge*0.35){ ctx.globalAlpha=0.7*charge; ctx.fillStyle=P.laserGlow;
+          if(hz)ctx.fillRect(px+(Math.floor(G.t*50+cx*3)%TILE),py+8,1,1); else ctx.fillRect(px+8,py+(Math.floor(G.t*50+cy*3)%TILE),1,1); }
       }
     }
-    const ex=Math.round(bx+L.x*TILE), ey=Math.round(by+L.y*TILE);
-    ctx.globalAlpha=1; ctx.fillStyle = firing ? PAL.white : PAL.red; ctx.fillRect(ex+5,ey+5,6,6);
-    ctx.fillStyle = firing ? PAL.red : '#4a0a0a'; ctx.fillRect(ex+7,ey+7,2,2);
+    if(firing){ ctx.globalAlpha=1; ctx.fillStyle=P.white; ctx.beginPath();ctx.arc(ex,ey,5+Math.sin(G.t*30),0,7);ctx.fill();
+      ctx.fillStyle=P.laserHot; ctx.fillRect(ex-1,ey-1,2,2); }
+    else { const cr=2+charge*3; ctx.globalAlpha=0.4+0.6*charge; ctx.fillStyle=P.laserHot; ctx.beginPath();ctx.arc(ex,ey,cr+Math.sin(G.t*20)*charge,0,7);ctx.fill();
+      ctx.globalAlpha=1; ctx.fillStyle=charge>0.6?P.laserCore:'#5a0c0c'; ctx.fillRect(ex-1,ey-1,2,2);
+      if(charge>0.2){ ctx.fillStyle=P.laserGlow; for(let i=0;i<5;i++){ const a=G.t*5-i*1.25, rr=(1-((G.t*1.4+i*0.2)%1))*11*charge; ctx.globalAlpha=0.7*charge; ctx.fillRect(Math.round(ex+Math.cos(a)*rr),Math.round(ey+Math.sin(a)*rr),1,1); } } }
+    ctx.globalAlpha=1;
+  }
+  ctx.globalAlpha=1;
+}
+
+// Pufferfish: tiny bobbing dot that inflates into a spiky ball (spines spin out,
+// body flushes hot orange) then deflates. Lethal across its 3x3 while puffed.
+function drawPuffers(ctx, bx, by){
+  if(!G.puffers || !G.puffers.length) return;
+  const P=PAL;
+  for(const f of G.puffers){
+    const cx=Math.round(bx+f.x*TILE+8), cy=Math.round(by+f.y*TILE+8);
+    const infl=puffInflation(G.t+f.off), lethal=infl>=0.9;
+    const bob=Math.sin(G.t*3+f.x)*(1.2-infl);
+    const pulse=lethal?Math.sin(G.t*22)*0.7:0;
+    const r=1.6+infl*17+pulse, yc=cy+bob;
+    const body=lethal?P.fuguMad:(infl>0.15?P.fugu:P.fuguD), bhi=lethal?P.fuguMadHi:P.fuguHi;
+    // aura
+    if(infl>0.1){ ctx.globalAlpha=0.10+0.22*infl; ctx.fillStyle=lethal?P.fuguMad:P.fugu;
+      ctx.beginPath(); ctx.arc(cx,yc,r+3+(lethal?Math.sin(G.t*22)*1.5:0),0,7); ctx.fill(); ctx.globalAlpha=1; }
+    // spines
+    if(infl>0.25){ const n=12, len=1+infl*7, rot=G.t*(lethal?2.4:0.6);
+      for(let i=0;i<n;i++){ const a=rot+i/n*6.2832, x0=cx+Math.cos(a)*(r-1), y0=yc+Math.sin(a)*(r-1), x1=cx+Math.cos(a)*(r+len), y1=yc+Math.sin(a)*(r+len);
+        ctx.strokeStyle=P.fuguSpine; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+        ctx.fillStyle=lethal?P.fuguMadHi:P.steelHi; ctx.fillRect(Math.round(x1),Math.round(y1),1,1); } }
+    // body + belly + sheen
+    ctx.fillStyle=body; ctx.beginPath(); ctx.arc(cx,yc,r,0,7); ctx.fill();
+    ctx.globalAlpha=0.5; ctx.fillStyle=bhi; ctx.beginPath(); ctx.arc(cx,yc+r*0.35,r*0.7,0,Math.PI); ctx.fill(); ctx.globalAlpha=1;
+    ctx.fillStyle=bhi; ctx.fillRect(Math.round(cx-r*0.5),Math.round(yc-r*0.7),Math.max(1,Math.round(r*0.5)),1);
+    // eyes (spread with inflation), angry brows when lethal
+    const exd=Math.max(1.7,r*0.34), eyy=yc-r*0.15, er=Math.max(1.2,r*0.16), pr=Math.max(1,r*0.09);
+    ctx.fillStyle=P.white; ctx.beginPath(); ctx.arc(cx-exd,eyy,er,0,7); ctx.arc(cx+exd,eyy,er,0,7); ctx.fill();
+    ctx.fillStyle=P.blackD; ctx.beginPath(); ctx.arc(cx-exd,eyy,pr,0,7); ctx.arc(cx+exd,eyy,pr,0,7); ctx.fill();
+    if(lethal){ ctx.strokeStyle=P.fuguSpine; ctx.lineWidth=1; ctx.beginPath();
+      ctx.moveTo(cx-exd-2,eyy-2); ctx.lineTo(cx-exd+2,eyy-1); ctx.moveTo(cx+exd+2,eyy-2); ctx.lineTo(cx+exd-2,eyy-1); ctx.stroke(); }
   }
   ctx.globalAlpha=1;
 }

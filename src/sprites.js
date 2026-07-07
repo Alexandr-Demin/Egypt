@@ -25,6 +25,11 @@ export const PAL = {
   white:'#ffeede',
   // spikes — pale bone-steel
   steel:'#e0d0c0', steelHi:'#ffffff', steelD:'#70584a',
+  // pufferfish — calm teal body that flushes hot orange when puffed; dark spines
+  fugu:'#7ad0a8', fuguHi:'#dbffe9', fuguD:'#2c6e56', fuguSpine:'#123026',
+  fuguMad:'#ff7a3a', fuguMadHi:'#ffdca0',
+  // laser energy accents
+  laserCore:'#ffffff', laserHot:'#ff5a3c', laserGlow:'#ff9a70',
 };
 
 function mk(w, h){ const c = document.createElement('canvas'); c.width = w; c.height = h||w; return c; }
