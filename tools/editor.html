@@ -109,6 +109,7 @@ const TOOLS = [
   { id:'#', name:'Стена' },
   { id:'.', name:'Пол' },
   { id:'o', name:'Монета' },
+  { id:'*', name:'Звезда' },
   { id:'P', name:'Старт' },
   { id:'E', name:'Выход' },
   { id:'X', name:'Мумия' },
@@ -242,7 +243,7 @@ function render(){
       ctx.fillStyle='rgba(255,210,30,0.5)'; ctx.beginPath(); ctx.arc(px+CELL/2,py+CELL/2,2,0,7); ctx.fill();
     }
     // объекты настоящими спрайтами
-    const spr = ch==='P'?'anubis' : ch==='E'?'exit' : ch==='X'?'mummy' : ch==='o'?'ankh' : null;
+    const spr = ch==='P'?'anubis' : ch==='E'?'exit' : ch==='X'?'mummy' : ch==='o'?'ankh' : ch==='*'?'star' : null;
     if(spr) ctx.drawImage(sprite(spr), px+2, py+2, CELL-4, CELL-4);
     // фугу — круглая рыбка с шипами
     if(ch==='F'){ const cxp=px+CELL/2, cyp=py+CELL/2, r=CELL*0.30;
@@ -376,7 +377,7 @@ $('export').onclick = ()=>{ const id=ident();
 };
 $('copy').onclick = async ()=>{ try{ await navigator.clipboard.writeText($('io').value);
   $('copy').textContent='Скопировано!'; setTimeout(()=>$('copy').textContent='Копировать',900);}catch(e){} };
-$('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].map(x=>x[1]).filter(s=>/^[#.PEXFo^v<>=| ]+$/.test(s));
+$('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].map(x=>x[1]).filter(s=>/^[#.PEXFo*^v<>=| ]+$/.test(s));
   if(!m.length){ alert('В поле не найдено строк уровня'); return; }
   const w=Math.max(...m.map(r=>r.length)); anim=null;
   grid=m.map(r=>(r+'#'.repeat(w)).slice(0,w).split('')); H=grid.length; W=w;

@@ -1,10 +1,12 @@
 // =========== SANDSLIDE — level maps ===========
-// Legend:  # wall   (space)/. empty floor   o coin (hand-placed)   P start
+// Legend:  # wall   (space)/. empty floor   o coin (hand-placed)   * star pickup   P start
 //          E exit(sarcophagus)   X mummy (horizontal patrol)   F pufferfish (3x3, puffs)
 //          ^ v < > spikes facing up/down/left/right (extend 0.5s after a touch)
 //          = laser gate (horizontal beam)   | laser gate (vertical beam)
 // Coins: if a map contains any 'o', those are the exact coins; otherwise the game
 // auto-places a coin on every slide-swept floor tile (see game.js parse()).
+// Stars ('*'): hand-placed rating pickups — the level result shows how many of
+// them (0..3) the player grabbed. Walkable like coins, never auto-coined.
 // Hardcoded ASCII per the GDD; parsed by game.js into a grid.
 
 // Level 1 — "CURSED TOMB": editor-authored intro with hand-placed coins.
@@ -31,14 +33,14 @@ const CURSED_TOMB = [
   '#############',
   '#############',
   '#############',
-  '###Eooooo####',
+  '###E*oooo####',
   '########o####',
   '########o####',
   '#####oooooo##',
   '#####o##o.o##',
   '#####o##ooo##',
   '#####ooo#####',
-  '#ooooo#o#####',
+  '#o*ooo#o#####',
   '#o###ooo#####',
   '#o###########',
   '#o###oooooo##',
@@ -48,7 +50,7 @@ const CURSED_TOMB = [
   '####oo##oooo#',
   '###########o#',
   '#######...#o#',
-  '#######.Pooo#',
+  '#######.P*oo#',
   '#############',
 ];
 
@@ -71,7 +73,7 @@ const LVL_2 = [
   '#############',
   '#############',
   '######E######',
-  '######o######',
+  '######*######',
   '######oooooo#',
   '###########o#',
   '###########o#',
@@ -91,14 +93,14 @@ const LVL_2 = [
   '#o#o######.o#',
   '#o#o####oooo#',
   '#ooo####o####',
-  '########oooo#',
+  '########*ooo#',
   '###########o#',
-  '########Pooo#',
+  '########P*oo#',
   '#############',
 ];
 
 // Level 3 — "lvl_3" (editor-authored): a patrolling mummy (X), timed passage.
-// Validated: solvable, 0 traps, P grounded, all 65 coins reachable, ~14 swipes.
+// 69 coins; solvability author-verified in-game.
 const LVL_3 = [
   '#############',
   '#############',
@@ -122,28 +124,28 @@ const LVL_3 = [
   '##o##########',
   '##o##########',
   '##o##########',
-  '##oooooo#####',
+  '##o*oooo#####',
   '###o...o#####',
   '###o...o#####',
   '###o..Xo#####',
-  '###ooooo#####',
+  '###oo*oo#####',
   '###o#########',
   '###oooooo####',
   '########o####',
   '###oooo#o####',
   '###o..o#o####',
-  '###o##...####',
-  '###o##..o####',
+  '###o##o.o####',
+  '###o##ooo####',
   '###o#########',
   '#ooooooooooo#',
   '#o#o#######o#',
   '#o#o###...#o#',
-  '#ooo###.Pooo#',
+  '#ooo###.P*oo#',
   '#############',
 ];
 
-// Level 4 — "lvl_4" (editor-authored). Validated: solvable, 0 traps, P grounded,
-// all 76 coins reachable, ~28 swipes.
+// Level 4 — "lvl_4" (editor-authored): adds a laser gate (=). 86 coins;
+// solvability author-verified in-game.
 const LVL_4 = [
   '#############',
   '#############',
@@ -158,7 +160,7 @@ const LVL_4 = [
   '#############',
   '#############',
   '#############',
-  '######ooo####',
+  '######*oo####',
   '######o#E####',
   '######o######',
   '######o######',
@@ -166,24 +168,24 @@ const LVL_4 = [
   '###########o#',
   '###########o#',
   '###########o#',
-  '##oooooooooo#',
+  '##ooooo*oooo#',
   '##o##########',
   '##o##########',
   '##o##########',
   '##o##########',
   '##oooo#######',
-  '#####.oo#####',
+  '#####ooo#####',
   '#######o#####',
-  '###ooooo#####',
+  '###oooo=#####',
   '#ooo#########',
   '#o###########',
   '#o#ooooooooo#',
   '#o#o######.o#',
   '#o#o####oooo#',
   '#ooo####o####',
-  '####...#oooo#',
-  '#..#.#.####o#',
-  '#P...#...ooo#',
+  '####ooo#oooo#',
+  '#..#o#o####o#',
+  '#P.*o#oooooo#',
   '#############',
 ];
 
@@ -203,7 +205,7 @@ const LVL_5 = [
   '#############',
   '#############',
   '#############',
-  '######ooo####',
+  '######*oo####',
   '######o#E####',
   '######o######',
   '######o######',
@@ -211,7 +213,7 @@ const LVL_5 = [
   '###########o#',
   '###########o#',
   '###########o#',
-  '##oooooooooo#',
+  '##ooooo*oooo#',
   '##o##########',
   '##o##########',
   '##o##########',
@@ -228,7 +230,52 @@ const LVL_5 = [
   '#ooo####o####',
   '####ooo#oooo#',
   '#..#o#o####o#',
-  '#P.oo#oooooo#',
+  '#P.*o#oooooo#',
+  '#############',
+];
+
+// Level 6 — "lvl_6" (editor-authored): looping top room + a pufferfish (F).
+// 3 star pickups; solvability author-verified in-game.
+const LVL_6 = [
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '#############',
+  '###*ooooooo##',
+  '###o######o##',
+  '###ooooo##o##',
+  '#######oE#o##',
+  '##########o##',
+  '##ooo*ooooo##',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##o##########',
+  '##oooo#######',
+  '#####ooo#####',
+  '#####oFo#####',
+  '###ooooo#####',
+  '#ooo#########',
+  '#o###########',
+  '#o#ooooooooo#',
+  '#o#o######.o#',
+  '#o#o####oooo#',
+  '#ooo####o####',
+  '####ooo#oooo#',
+  '#..#o#o####o#',
+  '#P.*o#oooooo#',
   '#############',
 ];
 
@@ -238,4 +285,5 @@ export const LEVELS = [
   { name: 'lvl_3',       map: LVL_3 },
   { name: 'lvl_4',       map: LVL_4 },
   { name: 'lvl_5',       map: LVL_5 },
+  { name: 'lvl_6',       map: LVL_6 },
 ];

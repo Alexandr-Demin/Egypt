@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706v';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706v';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706v';
-import { getState, patch, reset } from './state.js?v=20260706v';
-import * as sound from './sound.js?v=20260706v';
-import { generateLevel } from './levelgen.js?v=20260706v';
+import { LEVELS } from './levels.js?v=20260707a';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707a';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707a';
+import { getState, patch, reset } from './state.js?v=20260707a';
+import * as sound from './sound.js?v=20260707a';
+import { generateLevel } from './levelgen.js?v=20260707a';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -43,6 +43,8 @@ const G = {
   levelIndex:0, score:0, lives:3, levelName:'',
   endless:false, depth:1, runSeed:1, curMap:null, curName:'',
   grid:[], ROWS:0, COLS:0, coins:null, coinsLeft:0, coinsTotal:0, exitPos:{x:0,y:0},
+  stars:null, starsTotal:0,   // hand-placed rating pickups ('*'); rating = collected count
+
   lasers:[], laserCells:null, spikes:null, puffers:[], result:null,
   boardX:0, boardY:0, fvar:[], wvar:[],
   player:null, enemies:[], dir:null, bufDir:null, lastCell:'', heroAngle:0, slideFromX:0, slideFromY:0,
@@ -70,6 +72,7 @@ export function startGame(canvas){
     pump:(n)=>{ for(let i=0;i<(n||1);i++) tick(1/60); },
     testMap:(rows,name)=>{ G.endless=false; G.score=0; G.lives=3; parse({map:rows,name:name||'TEST'}); G.scene='play'; },
     laserCells:()=>G.laserCells?[...G.laserCells]:[], result:()=>G.result, coinsTotal:()=>G.coinsTotal,
+    starsTotal:()=>G.starsTotal, starsLeft:()=>G.stars?G.stars.size:0,
   };
 }
 
@@ -116,6 +119,7 @@ function parse(def){
   G.spikes = new Map();                   // 'x,y' -> {phase:'idle'|'armed'|'up', t}
   G.puffers = [];                         // pufferfish {x,y,off}
   const manualCoins = new Set();          // 'o' cells authored on the map (if any)
+  const manualStars = new Set();          // '*' cells — rating pickups (never auto-coined)
   const laserEmitters = [];               // '='/'|' beam-gate emitters
   for(let y=0;y<G.ROWS;y++){
     G.grid[y]=[]; G.fvar[y]=[]; G.wvar[y]=[];
@@ -128,6 +132,7 @@ function parse(def){
         G.spikes.set(x+','+y,{phase:'idle',t:0,dir}); }
       else if(ch==='E'){ t='exit'; G.exitPos={x,y}; }
       else if(ch==='o') manualCoins.add(x+','+y);   // hand-placed coin (walkable floor)
+      else if(ch==='*') manualStars.add(x+','+y);   // hand-placed star pickup (walkable floor)
       else if(ch==='=') laserEmitters.push({x,y,axis:'h'});   // horizontal beam gate
       else if(ch==='|') laserEmitters.push({x,y,axis:'v'});   // vertical beam gate
       else if(ch==='F') G.puffers.push({x,y,off:((x*7+y*13)%10)/10*PUFF_PERIOD});  // pufferfish (staggered)
@@ -143,9 +148,11 @@ function parse(def){
   const source = manualCoins.size ? manualCoins : computeSwept();
   for(const k of source){
     const [x,y]=k.split(',').map(Number);
-    if(G.grid[y][x]==='floor' && !(x===G.player.cx && y===G.player.cy)){ G.coins.add(k); G.coinsLeft++; }
+    if(G.grid[y][x]==='floor' && !manualStars.has(k) && !(x===G.player.cx && y===G.player.cy)){ G.coins.add(k); G.coinsLeft++; }
   }
   G.coinsTotal = G.coinsLeft;
+  // stars: hand-placed rating pickups, collected independently of coins
+  G.stars = new Set(manualStars); G.starsTotal = G.stars.size;
   // lasers: each emitter's beam spans the passage to the walls along its axis
   G.lasers = []; G.laserCells = new Set();
   for(const e of laserEmitters){
@@ -374,6 +381,8 @@ function enterCell(x,y){
   const k=x+','+y;
   if(G.coins.has(k)){ G.coins.delete(k); G.coinsLeft--; G.score++;
     burst(x*TILE+8, y*TILE+8, 6, PAL.gold, 30, 0.5); sound.play('tap'); G.flash=0.12; G.flashCol=PAL.goldHi; }
+  if(G.stars.has(k)){ G.stars.delete(k);   // rating pickup — bigger pop, no gold (coins are the currency)
+    burst(x*TILE+8, y*TILE+8, 14, PAL.goldHi, 46, 0.7); sound.play('win'); G.flash=0.22; G.flashCol=PAL.goldHi; }
   const t=G.grid[y][x];
   if(t==='spike'){ const sp=G.spikes.get(k);
     if(sp){ if(sp.phase==='up'){ die(); return; }                 // already out → lethal
@@ -401,11 +410,11 @@ function die(){
   sound.play('lose');
   G.deadTimer = G.lives<=0 ? 0.7 : 0.55;
 }
-// Level cleared → compute stars from coin %, persist (story only), show result screen.
-function starsFor(pct){ let s=1; if(pct>=0.6) s++; if(pct>=1) s++; return s; }
+// Level cleared → rating = collected star pickups (0..3); coin % drives the gold bar only.
 function showResult(){
   const total=G.coinsTotal||0, collected=Math.max(0, total-G.coinsLeft);
-  const pct = total>0 ? collected/total : 1, stars = starsFor(pct);
+  const pct = total>0 ? collected/total : 1;
+  const stars = Math.min(3, G.starsTotal - G.stars.size);
   if(!G.endless){
     const s=getState(); const st={ ...((s.progress&&s.progress.stars)||{}) };
     st[G.levelIndex] = Math.max(st[G.levelIndex]||0, stars);
@@ -418,9 +427,9 @@ function respawnOrEnd(){
   if(G._won){ G._won=false; showResult(); return; }
   if(G.lives<=0){ (G.endless?saveBestDepth:saveBest)(); transition(()=>{ G.scene='gameover'; }); }
   else {
-    const keptCoins = G.coins, keptLeft = G.coinsLeft;   // coins already collected stay collected
+    const keptCoins = G.coins, keptLeft = G.coinsLeft, keptStars = G.stars;   // pickups already grabbed stay grabbed
     parse(G.endless ? { map:G.curMap, name:'D'+G.depth+'  '+G.curName } : LEVELS[G.levelIndex]);
-    G.coins = keptCoins; G.coinsLeft = keptLeft;          // only the uncollected coins remain
+    G.coins = keptCoins; G.coinsLeft = keptLeft; G.stars = keptStars;          // only the uncollected pickups remain
     G.dead=false; G.dir=null; G.lastCell=''; G.trail.length=0;
   }
 }
@@ -485,6 +494,14 @@ function renderPlay(ctx){
     if(x<x0||x>x1||y<y0||y>y1) continue;
     const px=Math.round(bx+x*TILE), py=Math.round(by+y*TILE+Math.sin(G.t*4+x+y)*1.5);
     ctx.drawImage(sprite('ankh'), px, py);
+  }
+  // stars (bob + twinkling glow) — rating pickups, brighter than coins
+  for(const c of G.stars){ const [x,y]=c.split(',').map(Number);
+    if(x<x0||x>x1||y<y0||y>y1) continue;
+    const px=Math.round(bx+x*TILE), py=Math.round(by+y*TILE+Math.sin(G.t*3+x*2+y)*1.6);
+    const gl=0.35+0.35*Math.sin(G.t*4+x+y);
+    ctx.globalAlpha=gl; ctx.fillStyle=PAL.goldHi; ctx.beginPath(); ctx.arc(px+8,py+8,6,0,7); ctx.fill(); ctx.globalAlpha=1;
+    ctx.drawImage(sprite('star'), px, py);
   }
   // tomb doorway: two flickering torches flanking the sarcophagus
   drawTorch(ctx, bx+(G.exitPos.x-1)*TILE+8, by+G.exitPos.y*TILE+8);
@@ -812,6 +829,10 @@ function drawHUD(ctx){
   ctx.fillRect(eb.x+9,eb.y+10,2,2); ctx.fillRect(eb.x+11,eb.y+12,2,2);
   // hearts (shifted right to clear the exit button)
   for(let i=0;i<3;i++) ctx.drawImage(sprite(i<G.lives?'heart':'heart0'), 26+i*10, 8);
+  // star pips — collected rating so far (hidden when the level has no stars, e.g. endless)
+  if(G.starsTotal>0){ const got=G.starsTotal-G.stars.size;
+    for(let i=0;i<G.starsTotal;i++){ ctx.globalAlpha=i<got?1:0.28;
+      ctx.drawImage(sprite('star'), 58+i*9, 7, 9, 9); } ctx.globalAlpha=1; }
   // level name
   drawTextCentered(ctx, G.levelName, VW/2, 7, PAL.goldHi, 1);
   // score (right)

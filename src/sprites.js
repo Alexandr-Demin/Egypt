@@ -94,6 +94,15 @@ function spAnkh(){ // collectible — small round gold dot (точка), centred
   return c;
 }
 
+function spStar(){ // collectible rating pickup — a small gold 5-point star (distinct from the round coin)
+  const c = mk(16), x = c.getContext('2d'); const P = PAL;
+  // 7x7 star, centred (cols 5..11, rows 4..10)
+  const rows = ['...#...','...#...','#######','.#####.','..###..','.##.##.','.#...#.'];
+  for(let r=0;r<7;r++) for(let q=0;q<7;q++) if(rows[r][q]==='#') R(x,5+q,4+r,1,1,P.gold);
+  R(x,8,6,1,1,P.goldHi); R(x,8,7,1,1,P.white);   // bright core
+  return c;
+}
+
 function spSarcophagus(){ // exit
   const c = mk(16), x = c.getContext('2d'); const P = PAL;
   R(x,3,1,10,14,P.gold); R(x,11,1,2,14,P.goldD);   // case + shadow
@@ -156,6 +165,7 @@ export function sprite(name){
     case 'ball':   c = spBall(); break;
     case 'mummy':  c = spMummy(); break;
     case 'ankh':   c = spAnkh(); break;
+    case 'star':   c = spStar(); break;
     case 'exit':   c = spSarcophagus(); break;
     case 'wall0':  c = spWall(0); break;
     case 'wall1':  c = spWall(1); break;
