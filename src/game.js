@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706t';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706t';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706t';
-import { getState, patch, reset } from './state.js?v=20260706t';
-import * as sound from './sound.js?v=20260706t';
-import { generateLevel } from './levelgen.js?v=20260706t';
+import { LEVELS } from './levels.js?v=20260706u';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706u';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706u';
+import { getState, patch, reset } from './state.js?v=20260706u';
+import * as sound from './sound.js?v=20260706u';
+import { generateLevel } from './levelgen.js?v=20260706u';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -608,35 +608,40 @@ const ARC={
   BL:{carve:[[0,15],[1,15],[2,15],[0,14],[1,14],[0,13]], edge:[[3,15],[2,14],[1,13],[0,12]], hi:[[3,14],[2,13],[1,12]]},
   BR:{carve:[[15,15],[14,15],[13,15],[15,14],[14,14],[15,13]], edge:[[12,15],[13,14],[14,13],[15,12]], hi:[[12,14],[13,13],[14,12]]},
 };
+// Wall-contour colour sets: default crimson, turquoise for faces next to spikes.
+const WALL_CRIMSON = { edge:PAL.wallEdge, hi:PAL.wallHi, base:PAL.wall };
+const WALL_TEAL    = { edge:PAL.tealEdge, hi:PAL.tealHi, base:PAL.teal };
+const isSpikeCell = (x,y) => x>=0 && y>=0 && x<G.COLS && y<G.ROWS && G.grid[y][x]==='spike';
+
 // One horizontal wall face → a bold ~3px dotted contour band (bloom · edge · inner · inner2).
 // Hashed on WORLD pixel coords so the stipple is glued to the stone, not the camera.
 // inward = +1 if the wall body is below the edge (N face), -1 if above (S face).
-function edgeH(ctx, PX, ey, wpx, wey, inward){
-  const P=PAL;
+function edgeH(ctx, PX, ey, wpx, wey, inward, C){
+  C = C || WALL_CRIMSON;
   for(let k=0;k<TILE;k++){ const wx=wpx+k;
     let h=h2(wx*1.7+3, wey*1.3+7);                       // bright edge — near-solid
-    if(h>0.08){ ctx.globalAlpha=1; ctx.fillStyle=h>0.55?P.wallEdge:P.wallHi; ctx.fillRect(PX+k, ey, 1,1); }
+    if(h>0.08){ ctx.globalAlpha=1; ctx.fillStyle=h>0.55?C.edge:C.hi; ctx.fillRect(PX+k, ey, 1,1); }
     h=h2(wx*1.9+5, (wey+inward)*1.5+2);                  // 2nd px — still bright
-    if(h>0.26){ ctx.globalAlpha=1; ctx.fillStyle=h>0.6?P.wallHi:P.wall; ctx.fillRect(PX+k, ey+inward, 1,1); }
+    if(h>0.26){ ctx.globalAlpha=1; ctx.fillStyle=h>0.6?C.hi:C.base; ctx.fillRect(PX+k, ey+inward, 1,1); }
     h=h2(wx*2.3+11, (wey+2*inward)*1.9+5);               // 3rd px — dim, into the stone
-    if(h>0.6){ ctx.globalAlpha=1; ctx.fillStyle=P.wall; ctx.fillRect(PX+k, ey+2*inward, 1,1); }
+    if(h>0.6){ ctx.globalAlpha=1; ctx.fillStyle=C.base; ctx.fillRect(PX+k, ey+2*inward, 1,1); }
     h=h2(wx*1.1+19, (wey-inward)*2.7+2);                 // bloom — bleeds into the void
-    if(h>0.58){ ctx.globalAlpha=0.45; ctx.fillStyle=P.wallEdge; ctx.fillRect(PX+k, ey-inward, 1,1); }
+    if(h>0.58){ ctx.globalAlpha=0.45; ctx.fillStyle=C.edge; ctx.fillRect(PX+k, ey-inward, 1,1); }
   }
   ctx.globalAlpha=1;
 }
 // One vertical wall face. inward = +1 if wall body is to the right (W face), -1 if left (E face).
-function edgeV(ctx, ex, PY, wex, wpy, inward){
-  const P=PAL;
+function edgeV(ctx, ex, PY, wex, wpy, inward, C){
+  C = C || WALL_CRIMSON;
   for(let k=0;k<TILE;k++){ const wy=wpy+k;
     let h=h2(wex*1.3+7, wy*1.7+3);
-    if(h>0.08){ ctx.globalAlpha=1; ctx.fillStyle=h>0.55?P.wallEdge:P.wallHi; ctx.fillRect(ex, PY+k, 1,1); }
+    if(h>0.08){ ctx.globalAlpha=1; ctx.fillStyle=h>0.55?C.edge:C.hi; ctx.fillRect(ex, PY+k, 1,1); }
     h=h2((wex+inward)*1.5+2, wy*1.9+5);
-    if(h>0.26){ ctx.globalAlpha=1; ctx.fillStyle=h>0.6?P.wallHi:P.wall; ctx.fillRect(ex+inward, PY+k, 1,1); }
+    if(h>0.26){ ctx.globalAlpha=1; ctx.fillStyle=h>0.6?C.hi:C.base; ctx.fillRect(ex+inward, PY+k, 1,1); }
     h=h2((wex+2*inward)*1.9+5, wy*2.3+11);
-    if(h>0.6){ ctx.globalAlpha=1; ctx.fillStyle=P.wall; ctx.fillRect(ex+2*inward, PY+k, 1,1); }
+    if(h>0.6){ ctx.globalAlpha=1; ctx.fillStyle=C.base; ctx.fillRect(ex+2*inward, PY+k, 1,1); }
     h=h2((wex-inward)*2.7+2, wy*1.1+19);
-    if(h>0.58){ ctx.globalAlpha=0.45; ctx.fillStyle=P.wallEdge; ctx.fillRect(ex-inward, PY+k, 1,1); }
+    if(h>0.58){ ctx.globalAlpha=0.45; ctx.fillStyle=C.edge; ctx.fillRect(ex-inward, PY+k, 1,1); }
   }
   ctx.globalAlpha=1;
 }
@@ -658,10 +663,10 @@ function drawWallEdges(ctx, x0,y0,x1,y1){
     const N=open(x,y-1), S=open(x,y+1), W=open(x-1,y), E=open(x+1,y);
     if(!(N||S||W||E)) continue;
     const PX=Math.round(bx+x*T), PY=Math.round(by+y*T), wpx=x*T, wpy=y*T;
-    if(N) edgeH(ctx, PX, PY,     wpx, wpy,     +1);
-    if(S) edgeH(ctx, PX, PY+T-1, wpx, wpy+T-1, -1);
-    if(W) edgeV(ctx, PX, PY,     wpx, wpy,     +1);
-    if(E) edgeV(ctx, PX+T-1, PY, wpx+T-1, wpy, -1);
+    if(N) edgeH(ctx, PX, PY,     wpx, wpy,     +1, isSpikeCell(x,y-1)?WALL_TEAL:WALL_CRIMSON);
+    if(S) edgeH(ctx, PX, PY+T-1, wpx, wpy+T-1, -1, isSpikeCell(x,y+1)?WALL_TEAL:WALL_CRIMSON);
+    if(W) edgeV(ctx, PX, PY,     wpx, wpy,     +1, isSpikeCell(x-1,y)?WALL_TEAL:WALL_CRIMSON);
+    if(E) edgeV(ctx, PX+T-1, PY, wpx+T-1, wpy, -1, isSpikeCell(x+1,y)?WALL_TEAL:WALL_CRIMSON);
     roundCornerDotted(ctx,PX,PY,wpx,wpy,N,W,'TL'); roundCornerDotted(ctx,PX,PY,wpx,wpy,N,E,'TR');
     roundCornerDotted(ctx,PX,PY,wpx,wpy,S,W,'BL'); roundCornerDotted(ctx,PX,PY,wpx,wpy,S,E,'BR');
   }

@@ -1,14 +1,16 @@
-// =========== EGYPT — procedural pixel sprites + 5x7 font ===========
+// =========== SANDSLIDE — procedural pixel sprites + 5x7 font ===========
 // Everything is drawn in code into 16x16 (or smaller) offscreen canvases and
 // cached. No external assets. Visual style: 2-bit neon — pure-black void,
 // glowing maze-stone contour, brilliant gold relics. Egyptian setting:
 // Anubis, ankh, mummies, sarcophagus, all in the neon key.
 
-// EGYPT palette — "Curse": crimson glow + gold on a near-black, blood-dark void.
+// SANDSLIDE palette — "Curse": crimson glow + gold on a near-black, blood-dark void.
 export const PAL = {
   bg:'#0c0406',
   // crimson border-contour (walls are black; only the boundary glows)
   wallD:'#1a0606', wall:'#d23a2a', wallHi:'#ff7a5c', wallEdge:'#ffc0ad', wallStar:'#ff9a80',
+  // turquoise contour — marks wall faces next to spikes so the hazard reads at a glance
+  teal:'#1fb6a6', tealHi:'#5ff0dd', tealEdge:'#c8fff4',
   // legacy "stone/sand" keys remapped onto the crimson family (HUD, particles)
   stoneD:'#2a0a0a', stone:'#3a0e0e', stoneL:'#d23a2a', stoneHi:'#ff7a5c',
   sand:'#d23a2a', sandD:'#3a0e0e', sandL:'#ff7a5c',
