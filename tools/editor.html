@@ -112,7 +112,10 @@ const TOOLS = [
   { id:'P', name:'Старт' },
   { id:'E', name:'Выход' },
   { id:'X', name:'Мумия' },
-  { id:'^', name:'Шипы' },
+  { id:'^', name:'Шип ↑' },
+  { id:'v', name:'Шип ↓' },
+  { id:'<', name:'Шип ←' },
+  { id:'>', name:'Шип →' },
   { id:'=', name:'Лазер —' },
   { id:'|', name:'Лазер |' },
 ];
@@ -238,8 +241,18 @@ function render(){
       ctx.fillStyle='rgba(255,210,30,0.5)'; ctx.beginPath(); ctx.arc(px+CELL/2,py+CELL/2,2,0,7); ctx.fill();
     }
     // объекты настоящими спрайтами
-    const spr = ch==='P'?'anubis' : ch==='E'?'exit' : ch==='X'?'mummy' : ch==='^'?'spikes' : ch==='o'?'ankh' : null;
+    const spr = ch==='P'?'anubis' : ch==='E'?'exit' : ch==='X'?'mummy' : ch==='o'?'ankh' : null;
     if(spr) ctx.drawImage(sprite(spr), px+2, py+2, CELL-4, CELL-4);
+    // шипы с направлением (^ v < >)
+    if(ch==='^'||ch==='v'||ch==='<'||ch==='>'){ const S=CELL, base='#2a0a0a', steel='#e0d0c0';
+      const tri=(ax,ay,bx2,by2,cx2,cy2)=>{ ctx.beginPath();ctx.moveTo(px+ax,py+ay);ctx.lineTo(px+bx2,py+by2);ctx.lineTo(px+cx2,py+cy2);ctx.closePath();ctx.fill(); };
+      const at=[5,12,19], len=9;
+      ctx.fillStyle=base;
+      if(ch==='^'){ ctx.fillRect(px,py+S-3,S,3); ctx.fillStyle=steel; for(const o of at) tri(o-3,S-3,o+3,S-3,o,S-3-len); }
+      else if(ch==='v'){ ctx.fillRect(px,py,S,3); ctx.fillStyle=steel; for(const o of at) tri(o-3,3,o+3,3,o,3+len); }
+      else if(ch==='<'){ ctx.fillRect(px+S-3,py,3,S); ctx.fillStyle=steel; for(const o of at) tri(S-3,o-3,S-3,o+3,S-3-len,o); }
+      else { ctx.fillRect(px,py,3,S); ctx.fillStyle=steel; for(const o of at) tri(3,o-3,3,o+3,3+len,o); }
+    }
     // лазер: луч до стен по оси + излучатель
     if(ch==='='||ch==='|'){ const ax = ch==='=' ? 'h':'v';
       const beam=[[x,y]];
@@ -354,7 +367,7 @@ $('export').onclick = ()=>{ const id=ident();
 };
 $('copy').onclick = async ()=>{ try{ await navigator.clipboard.writeText($('io').value);
   $('copy').textContent='Скопировано!'; setTimeout(()=>$('copy').textContent='Копировать',900);}catch(e){} };
-$('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].map(x=>x[1]).filter(s=>/^[#.PEXo^=| ]+$/.test(s));
+$('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].map(x=>x[1]).filter(s=>/^[#.PEXo^v<>=| ]+$/.test(s));
   if(!m.length){ alert('В поле не найдено строк уровня'); return; }
   const w=Math.max(...m.map(r=>r.length)); anim=null;
   grid=m.map(r=>(r+'#'.repeat(w)).slice(0,w).split('')); H=grid.length; W=w;

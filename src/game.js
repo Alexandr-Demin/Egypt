@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260706r';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706r';
-import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706r';
-import { getState, patch, reset } from './state.js?v=20260706r';
-import * as sound from './sound.js?v=20260706r';
-import { generateLevel } from './levelgen.js?v=20260706r';
+import { LEVELS } from './levels.js?v=20260706s';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260706s';
+import { renderTitle, renderMenu, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260706s';
+import { getState, patch, reset } from './state.js?v=20260706s';
+import * as sound from './sound.js?v=20260706s';
+import { generateLevel } from './levelgen.js?v=20260706s';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -111,7 +111,9 @@ function parse(def){
       const ch = rows[y][x] || '#';
       let t = 'floor';
       if(ch==='#') t='wall';
-      else if(ch==='^'){ t='spike'; G.spikes.set(x+','+y,{phase:'idle',t:0}); }
+      else if(ch==='^'||ch==='v'||ch==='<'||ch==='>'){ t='spike';    // directional spikes
+        const dir = ch==='v'?'down' : ch==='<'?'left' : ch==='>'?'right' : 'up';
+        G.spikes.set(x+','+y,{phase:'idle',t:0,dir}); }
       else if(ch==='E'){ t='exit'; G.exitPos={x,y}; }
       else if(ch==='o') manualCoins.add(x+','+y);   // hand-placed coin (walkable floor)
       else if(ch==='=') laserEmitters.push({x,y,axis:'h'});   // horizontal beam gate
@@ -533,16 +535,27 @@ function drawSpikes(ctx, bx, by){
   for(const [k,sp] of G.spikes){
     const [x,y]=k.split(',').map(Number);
     const px=Math.round(bx+x*TILE), py=Math.round(by+y*TILE);
-    ctx.fillStyle=P.stoneD; ctx.fillRect(px, py+11, TILE, 5);   // base slab
-    ctx.fillStyle=P.stone;  ctx.fillRect(px, py+11, TILE, 1);
     let h=0, col=P.steel, hi=P.steelHi;
     if(sp.phase==='armed'){ h=1-Math.max(0,sp.t/SPIKE_ARM); col=P.gold; hi=P.goldHi; }  // rising warning
     else if(sp.phase==='up'){ h=1; col=P.steelHi; hi=P.white; }                          // extended = lethal
-    if(h>0){ const ph=Math.max(1,Math.round(7*h)), topY=py+11-ph;
-      for(const X of [2,6,10,13]){
-        ctx.fillStyle=P.steelD; ctx.fillRect(px+X-1, topY, 3, ph);
-        ctx.fillStyle=col;      ctx.fillRect(px+X,   topY, 1, ph);
-        ctx.fillStyle=hi;       ctx.fillRect(px+X,   topY, 1, 1); } }
+    drawSpikeGfx(ctx, px, py, sp.dir||'up', h, col, hi);
+  }
+}
+// base slab on the anchoring wall edge + points growing inward by `h` (0..1)
+function drawSpikeGfx(ctx, px, py, dir, h, col, hi){
+  const P=PAL, L=Math.max(1,Math.round(7*h)), pos=[2,6,10,13];
+  if(dir==='down'){
+    ctx.fillStyle=P.stoneD; ctx.fillRect(px,py,TILE,5); ctx.fillStyle=P.stone; ctx.fillRect(px,py+4,TILE,1);
+    if(h>0) for(const X of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+X-1,py+5,3,L); ctx.fillStyle=col;ctx.fillRect(px+X,py+5,1,L); ctx.fillStyle=hi;ctx.fillRect(px+X,py+5+L-1,1,1); }
+  } else if(dir==='left'){
+    ctx.fillStyle=P.stoneD; ctx.fillRect(px+11,py,5,TILE); ctx.fillStyle=P.stone; ctx.fillRect(px+11,py,1,TILE);
+    if(h>0) for(const Y of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+11-L,py+Y-1,L,3); ctx.fillStyle=col;ctx.fillRect(px+11-L,py+Y,L,1); ctx.fillStyle=hi;ctx.fillRect(px+11-L,py+Y,1,1); }
+  } else if(dir==='right'){
+    ctx.fillStyle=P.stoneD; ctx.fillRect(px,py,5,TILE); ctx.fillStyle=P.stone; ctx.fillRect(px+4,py,1,TILE);
+    if(h>0) for(const Y of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+5,py+Y-1,L,3); ctx.fillStyle=col;ctx.fillRect(px+5,py+Y,L,1); ctx.fillStyle=hi;ctx.fillRect(px+5+L-1,py+Y,1,1); }
+  } else { // up
+    ctx.fillStyle=P.stoneD; ctx.fillRect(px,py+11,TILE,5); ctx.fillStyle=P.stone; ctx.fillRect(px,py+11,TILE,1);
+    if(h>0) for(const X of pos){ ctx.fillStyle=P.steelD;ctx.fillRect(px+X-1,py+11-L,3,L); ctx.fillStyle=col;ctx.fillRect(px+X,py+11-L,1,L); ctx.fillStyle=hi;ctx.fillRect(px+X,py+11-L,1,1); }
   }
 }
 
