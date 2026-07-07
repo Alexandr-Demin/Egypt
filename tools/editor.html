@@ -13,6 +13,10 @@
   .wrap{ display:flex; gap:16px; padding:14px; align-items:flex-start; flex-wrap:wrap; }
   h1{ font-size:15px; letter-spacing:.24em; color:var(--gold); margin:0 0 10px; font-weight:900; }
   .col{ display:flex; flex-direction:column; gap:10px; }
+  /* Fix the side columns so the palette can't stretch the row wide and shove the
+     config panel below the (very tall) canvas. Center col stays auto for the canvas. */
+  .wrap > .col:first-child{ width:340px; flex:0 0 auto; }
+  .wrap > .col:last-child { width:360px; flex:0 0 auto; }
   .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
   .row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
   button, select{ background:#22100f; color:var(--ink); border:1px solid var(--line);
@@ -25,7 +29,8 @@
     border-radius:8px; padding:6px; }
   label{ font-size:12px; color:var(--muted); }
   canvas{ background:#0a0603; border:1px solid var(--line); border-radius:8px;
-    image-rendering:pixelated; touch-action:none; cursor:crosshair; }
+    image-rendering:pixelated; touch-action:none; cursor:crosshair;
+    max-height:calc(100vh - 28px); width:auto; }   /* scale tall levels to fit the viewport */
   .stat{ display:flex; justify-content:space-between; gap:12px; font-size:13px; padding:3px 0;
     border-bottom:1px dashed var(--line); }
   .stat b{ font-weight:700; }
