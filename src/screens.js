@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707l';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707m';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -93,59 +93,80 @@ function drawCabinet(ctx, cx, cy){
   ctx.fillStyle=P.goldHi; ctx.fillRect(x+16,y+24,2,2); ctx.fillRect(x+21,y+24,2,2);         // buttons
 }
 
-// Mode-select: two big pixel icons — STORY (scroll) and ARCADE (cabinet).
-export function renderModes(ctx, VW, VH, t, data){
-  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'MODE', VW/2, 30, PAL.gold, 3);
-  const CW=82, CH=100, GAP=12, y=86;
-  const story = { id:'story',  x:Math.round(VW/2-CW-GAP/2), y, w:CW, h:CH };
-  const arc   = { id:'arcade', x:Math.round(VW/2+GAP/2),    y, w:CW, h:CH };
-  frame(ctx, story.x, story.y, CW, CH);
-  drawScroll(ctx, story.x+CW/2, story.y+42);
-  drawTextCentered(ctx, 'STORY', story.x+CW/2, story.y+CH-24, PAL.goldHi, 1);
-  if(data && data.storyBest) drawTextCentered(ctx, 'BEST '+data.storyBest, story.x+CW/2, story.y+CH-12, PAL.wallEdge, 1);
-  frame(ctx, arc.x, arc.y, CW, CH);
-  drawCabinet(ctx, arc.x+CW/2, arc.y+42);
-  drawTextCentered(ctx, 'ARCADE', arc.x+CW/2, arc.y+CH-24, PAL.goldHi, 1);
-  if(data && data.arcadeBest) drawTextCentered(ctx, 'BEST '+data.arcadeBest, arc.x+CW/2, arc.y+CH-12, PAL.wallEdge, 1);
-  const back = { id:'menu', x:VW/2-30, y:212, w:60, h:16 };
-  frameBtn(ctx, back, 'BACK', 1);
-  return [story, arc, back];
+// Small bottom-bar tab: a mini STORY (scroll) / ARCADE (cabinet) glyph, gold when
+// active (with an underline), dim otherwise.
+function drawTab(ctx, b, kind, active){
+  const cx=Math.round(b.x+b.w/2), cy=Math.round(b.y+b.h/2-1), col=active?PAL.gold:PAL.wallHi;
+  if(active){ ctx.globalAlpha=0.16; ctx.fillStyle=PAL.gold; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.globalAlpha=1; }
+  ctx.save(); ctx.globalAlpha=active?1:0.6;
+  if(kind==='story'){ ctx.fillStyle=col; ctx.fillRect(cx-7,cy-5,14,10);
+    ctx.fillStyle=PAL.blackD; for(let i=0;i<3;i++) ctx.fillRect(cx-4,cy-3+i*3,8,1); }
+  else { ctx.fillStyle=col; ctx.fillRect(cx-6,cy-6,12,13);
+    ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-4,cy-4,8,5); ctx.fillStyle=col; ctx.fillRect(cx-2,cy+3,4,1); }
+  ctx.restore();
+  if(active){ ctx.fillStyle=PAL.gold; ctx.fillRect(b.x+4, b.y+b.h-2, b.w-8, 1); }
 }
 
-// Level-select: an adaptive grid of cards, each with its number and three hollow
-// stars. 2 columns up to 10 levels, 3 columns beyond (fits more on the small
-// screen). The first `unlocked` cards are selectable; the rest show a padlock.
-export function renderSelect(ctx, VW, VH, t, data){
-  const unlocked = (data && data.unlocked) || 0;
-  const total = (data && data.total) || 10;
-  const COLS = total > 10 ? 3 : 2;
-  const rows = Math.ceil(total / COLS);
-  const MX = 12, GAP = 6, TOP = 30, BOT = 258;                     // grid region; BACK sits below
-  const CW = Math.floor((VW - MX*2 - GAP*(COLS-1)) / COLS);
-  const PITCH = Math.min(47, Math.floor((BOT - TOP) / rows));
-  const CH = Math.min(40, PITCH - 6);
-  const big = CW >= 70;                                            // 2-col cards fit the big number/stars
-  const numScale = big ? 3 : 2, starR = big ? 5 : 4, starGap = big ? 13 : 9;
-  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'LEVELS', VW/2, 14, PAL.gold, 2);
+// Combined mode screen: STORY (level grid, the default) and ARCADE (flying hero
+// in the dark + centred START) tabs, switched by a bottom bar. Returns all the
+// clickable rects. `data.tab` = 'story' | 'arcade'.
+export function renderPlayModes(ctx, VW, VH, t, data){
+  const tab = (data && data.tab) || 'story';
+  const barY = VH-26, barH = 22, contentBot = barY - 6;
+  starfield(ctx, VW, VH, t);
   const btns = [];
-  for(let i=0;i<total;i++){
-    const col = i % COLS, row = (i / COLS) | 0;
-    const x = MX + col*(CW+GAP), y = TOP + row*PITCH;
-    const avail = i < unlocked;
-    ctx.save();
-    ctx.globalAlpha = avail ? 1 : 0.3;
-    frame(ctx, x, y, CW, CH);
-    drawTextCentered(ctx, String(i+1), x+CW/2, y+4, avail?PAL.gold:PAL.wallHi, numScale);
-    const scx = x+CW/2, sy = y+CH-8, earned = (data && data.stars && data.stars[i]) || 0;
-    if(avail) for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*starGap;   // stars only on open cards
-      if(s<earned) starFilled(ctx, sx2, sy, starR, PAL.gold);
-      else starOutline(ctx, sx2, sy, starR, PAL.goldHi); }
-    ctx.restore();
-    if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
-    else drawLock(ctx, x+CW/2, y+CH-9);                             // locked: padlock instead of stars
+
+  if(tab === 'story'){
+    drawTextCentered(ctx, 'LEVELS', VW/2, 12, PAL.gold, 2);
+    const unlocked = (data && data.unlocked) || 0, total = (data && data.total) || 10;
+    const COLS = total > 10 ? 3 : 2, rows = Math.ceil(total / COLS);
+    const MX = 12, GAP = 6, TOP = 28;
+    const CW = Math.floor((VW - MX*2 - GAP*(COLS-1)) / COLS);
+    const PITCH = Math.min(46, Math.floor((contentBot - TOP) / rows));
+    const CH = Math.min(40, PITCH - 5);
+    const big = CW >= 70, numScale = big ? 3 : 2, starR = big ? 5 : 4, starGap = big ? 13 : 9;
+    for(let i=0;i<total;i++){
+      const col = i % COLS, row = (i / COLS) | 0, x = MX + col*(CW+GAP), y = TOP + row*PITCH, avail = i < unlocked;
+      ctx.save(); ctx.globalAlpha = avail ? 1 : 0.3;
+      frame(ctx, x, y, CW, CH);
+      drawTextCentered(ctx, String(i+1), x+CW/2, y+3, avail?PAL.gold:PAL.wallHi, numScale);
+      const scx = x+CW/2, sy = y+CH-8, earned = (data && data.stars && data.stars[i]) || 0;
+      if(avail) for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*starGap;
+        if(s<earned) starFilled(ctx, sx2, sy, starR, PAL.gold); else starOutline(ctx, sx2, sy, starR, PAL.goldHi); }
+      ctx.restore();
+      if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
+      else drawLock(ctx, x+CW/2, y+CH-9);
+    }
+  } else {
+    // ARCADE: a hero flying up through the dark + a centred START button.
+    for(let i=0;i<28;i++){ const sx=(i*71)%VW, base=(i*53)%VH, sp=60+((i*29)%80), sy=(base+t*sp)%VH, len=4+((i*7)%8);
+      ctx.globalAlpha=0.3+0.4*((i%4)/4); ctx.fillStyle=(i%5===0)?PAL.gold:PAL.wallHi; ctx.fillRect(sx,sy,1,len); }
+    ctx.globalAlpha=1;
+    drawTextCentered(ctx, 'ARCADE', VW/2, 28, PAL.gold, 3);
+    if(data && data.arcadeBest) drawTextCentered(ctx, 'BEST  '+data.arcadeBest, VW/2, 54, PAL.wallEdge, 1);
+    const hx=VW/2, hy=124 + Math.sin(t*4)*5;
+    for(const off of [-5,-2,2,5]){ const g=ctx.createLinearGradient(0,hy,0,hy+22);
+      g.addColorStop(0,PAL.goldHi); g.addColorStop(1,'rgba(255,210,30,0)');
+      ctx.strokeStyle=g; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(hx+off,hy+6); ctx.lineTo(hx+off,hy+22); ctx.stroke(); }
+    ctx.imageSmoothingEnabled=false; ctx.drawImage(sprite('ball'), Math.round(hx-8), Math.round(hy-8));
+    const b = { id:'arcadeStart', x:VW/2-50, y:184, w:100, h:32 };
+    frameBtn(ctx, b, 'START', 2);
+    btns.push(b);
   }
-  const back = { id:'menu', x:VW/2-30, y:270, w:60, h:13 };
-  frameBtn(ctx, back, 'BACK', 1);
+
+  // bottom bar: two tabs
+  ctx.fillStyle=PAL.wallD; ctx.fillRect(8, barY-2, VW-16, 1);
+  const tStory = { id:'tabStory',  x:VW/2-52, y:barY, w:48, h:barH };
+  const tArc   = { id:'tabArcade', x:VW/2+4,  y:barY, w:48, h:barH };
+  drawTab(ctx, tStory, 'story',  tab==='story');
+  drawTab(ctx, tArc,   'arcade', tab==='arcade');
+  btns.push(tStory, tArc);
+
+  // back (top-left gold chevron)
+  const back = { id:'menu', x:6, y:6, w:20, h:16 };
+  ctx.fillStyle=PAL.gold;
+  ctx.fillRect(back.x+11,back.y+4,2,2); ctx.fillRect(back.x+9,back.y+6,2,2); ctx.fillRect(back.x+7,back.y+8,2,2);
+  ctx.fillRect(back.x+9,back.y+10,2,2); ctx.fillRect(back.x+11,back.y+12,2,2);
   btns.push(back);
   return btns;
 }

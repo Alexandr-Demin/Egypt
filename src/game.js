@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707j';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707j';
-import { renderTitle, renderMenu, renderModes, renderDebug, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707j';
-import { getState, patch, reset } from './state.js?v=20260707j';
-import * as sound from './sound.js?v=20260707j';
-import { generateLevel } from './levelgen.js?v=20260707j';
+import { LEVELS } from './levels.js?v=20260707m';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707m';
+import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderResult, renderWin, renderGameover } from './screens.js?v=20260707m';
+import { getState, patch, reset } from './state.js?v=20260707m';
+import * as sound from './sound.js?v=20260707m';
+import { generateLevel } from './levelgen.js?v=20260707m';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -57,6 +57,7 @@ const G = {
   dustTimer:0, confirmExit:false,
   arcade:false, arcadeDepth:0, fill:null, arcadeFly:null,   // arcade run state
   godMode:false,                                            // debug: immortality
+  modeTab:'story',                                          // mode screen tab: 'story' | 'arcade'
 };
 
 // ---------------- lifecycle ----------------
@@ -143,8 +144,13 @@ function loadArcadeLevel(){
   G.dead = false; G.dir = null; G.lastCell = ''; G.confirmExit = false; G.arcadeFly = null;
   G.particles.length = 0; G.trail.length = 0; G.shake = 0; G.hs = 0;
   parse({ map: rows, name: 'ARCADE  ' + (d + 1) });     // G.score persists across levels (coin total)
-  if(d > 0){ G.intro = null; G.startCell = null; }      // after a warp: no entrance pyramid — drop straight in
+  G.intro = null; G.startCell = null;                   // arcade: never show the entrance pyramid
   initFill();
+  // fly the hero in from below onto its start — seamless arrival, same as between levels (and for level 1)
+  const p = G.player, sx = p.cx, sy = p.cy;
+  p.fx = sx; p.fy = sy + WARP_DIST; p.cx = p.tx = sx; p.cy = p.ty = Math.round(p.fy); p.moving = false;
+  G.arcadeFly = { phase:'in', tx:sx, ty:sy };
+  G.dir = 'up'; G.heroAngle = HERO_ANGLE.up;
   G.scene = 'play';
 }
 // Flood starts just below the map and rises; faster the deeper the run.
@@ -323,10 +329,11 @@ function handleTap(vx,vy){
 }
 function onButton(id){
   sound.play('tap');
-  if(id==='start') transition(()=>{ G.scene='modes'; });             // title tap → mode select
-  else if(id==='story') transition(()=>{ G.scene='select'; });        // STORY → level select
-  else if(id==='arcade') transition(startArcade);                     // ARCADE → stitched infinite run
-  else if(id==='play') transition(()=>{ G.scene='select'; });        // (legacy) PLAY → level select
+  if(id==='start') transition(()=>{ G.scene='select'; G.modeTab='story'; });   // title tap → mode screen (story)
+  else if(id==='tabStory') G.modeTab='story';                        // bottom bar: switch tab (instant)
+  else if(id==='tabArcade') G.modeTab='arcade';
+  else if(id==='arcadeStart') startArcade();                         // START → seamless fly-in to level 1 (no fade)
+  else if(id==='play') transition(()=>{ G.scene='select'; G.modeTab='story'; });  // (legacy) PLAY → level select
   else if(id==='endless') transition(startEndless);                  // (legacy) ENDLESS → generated descent
   else if(id==='retry') transition(()=> G.arcade ? startArcade() : G.endless ? startEndless() : startRun(G.runStart||0));
   else if(id==='exit') G.confirmExit = true;                        // open in-match confirm dialog
@@ -382,13 +389,7 @@ function update(dt){
     const p=G.player, w=G.arcadeFly, step=FLY_SPEED*dt;
     if(w.phase==='out'){
       p.fy-=step; p.fx=p.tx=Math.round(p.fx); G.heroAngle=HERO_ANGLE.up;
-      if(p.fy<=w.ty){                                   // risen clear of the tunnel → swap level
-        G.arcadeDepth++; loadArcadeLevel();             // places hero at the new start P (no intro)
-        const np=G.player, sx=np.cx, sy=np.cy;
-        np.fx=sx; np.fy=sy+WARP_DIST; np.cx=np.tx=sx; np.cy=np.ty=Math.round(np.fy); np.moving=false;
-        G.arcadeFly={ phase:'in', tx:sx, ty:sy };       // keep rising from below onto the start
-        G.dir='up'; G.heroAngle=HERO_ANGLE.up;
-      }
+      if(p.fy<=w.ty){ G.arcadeDepth++; loadArcadeLevel(); }   // clear of tunnel → load next (sets up the 'in' fly)
     } else {                                            // 'in' — rise onto the start (bottom-up)
       p.fy-=step; p.fx=w.tx; G.heroAngle=HERO_ANGLE.up;
       if(p.fy<=w.ty){ p.fy=w.ty; p.fx=w.tx; p.cx=w.tx; p.cy=w.ty; p.moving=false;
@@ -553,8 +554,7 @@ function render(){
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, arcadeBest:getState()?.progress?.arcadeBest||0}); }
-  else if(G.scene==='modes'){ G.buttons=renderModes(ctx,VW,VH,G.t,{arcadeBest:getState()?.progress?.arcadeBest||0}); }
-  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:unlockedCount(), total:LEVELS.length, stars:getState()?.progress?.stars||{}}); }
+  else if(G.scene==='select'){ G.buttons=renderPlayModes(ctx,VW,VH,G.t,{tab:G.modeTab, unlocked:unlockedCount(), total:LEVELS.length, stars:getState()?.progress?.stars||{}, arcadeBest:getState()?.progress?.arcadeBest||0}); }
   else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='debug'){ G.buttons=renderDebug(ctx,VW,VH,G.t,{god:G.godMode}); }
