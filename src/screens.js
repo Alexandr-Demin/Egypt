@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707m';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707n';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -69,42 +69,34 @@ function drawLock(ctx, cx, cy){
   ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-1, by+2, 2, 4);    // keyhole
 }
 
-// Papyrus scroll icon (STORY mode), centred on (cx,cy).
-function drawScroll(ctx, cx, cy){
-  const P=PAL, w=28, h=34, x=Math.round(cx-w/2), y=Math.round(cy-h/2);
-  ctx.fillStyle=P.gold;   ctx.fillRect(x, y+4, w, h-8);            // parchment
-  ctx.fillStyle=P.goldHi; ctx.fillRect(x, y+4, w, 2);
-  ctx.fillStyle=P.goldD;  ctx.fillRect(x, y+h-6, w, 2);
-  ctx.fillStyle=P.wall;   ctx.fillRect(x-2, y, w+4, 5); ctx.fillRect(x-2, y+h-5, w+4, 5);  // rolled ends
-  ctx.fillStyle=P.wallHi; ctx.fillRect(x-2, y, w+4, 1); ctx.fillRect(x-2, y+h-5, w+4, 1);
-  ctx.fillStyle=P.wall;   for(let i=0;i<4;i++) ctx.fillRect(x+4, y+9+i*4, w-8, 1);         // writing
+// Little scroll glyph (STORY), centred on (cx,cy), ~15x14.
+function drawScrollIcon(ctx, cx, cy, col){
+  const x=Math.round(cx-7), y=Math.round(cy-7);
+  ctx.fillStyle=col;       ctx.fillRect(x, y, 15, 3); ctx.fillRect(x, y+11, 15, 3);   // rolled ends
+  ctx.fillStyle=PAL.goldHi; ctx.fillRect(x, y, 15, 1);
+  ctx.fillStyle=col;       ctx.fillRect(x+1, y+3, 13, 8);                              // parchment
+  ctx.fillStyle=PAL.blackD; for(let i=0;i<3;i++) ctx.fillRect(x+3, y+5+i*2, 9, 1);     // writing
 }
-// Arcade cabinet icon (ARCADE mode), centred on (cx,cy).
-function drawCabinet(ctx, cx, cy){
-  const P=PAL, w=30, h=38, x=Math.round(cx-w/2), y=Math.round(cy-h/2);
-  ctx.fillStyle=P.wall;   ctx.fillRect(x, y, w, h);                // body
-  ctx.fillStyle=P.wallHi; ctx.fillRect(x, y, w, 1);
-  ctx.fillStyle=P.wallD;  ctx.fillRect(x, y+h-1, w, 1);
-  ctx.fillStyle=P.blackD; ctx.fillRect(x+4, y+5, w-8, 12);         // screen
-  ctx.fillStyle=P.gold;   ctx.fillRect(x+6,y+7,3,3); ctx.fillRect(x+12,y+10,3,3); ctx.fillRect(x+18,y+7,3,3);
-  ctx.fillStyle=P.goldD;  ctx.fillRect(x+3, y+22, w-6, 8);         // control panel
-  ctx.strokeStyle=P.goldHi; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+9,y+26); ctx.lineTo(x+9,y+21); ctx.stroke();
-  ctx.fillStyle=P.red;    ctx.beginPath(); ctx.arc(x+9, y+20, 2.5, 0, 7); ctx.fill();      // joystick ball
-  ctx.fillStyle=P.goldHi; ctx.fillRect(x+16,y+24,2,2); ctx.fillRect(x+21,y+24,2,2);         // buttons
+// Little joystick glyph (ARCADE), centred on (cx,cy).
+function drawJoystickIcon(ctx, cx, cy, col){
+  cx=Math.round(cx); cy=Math.round(cy);
+  ctx.fillStyle=col;        ctx.fillRect(cx-6, cy+4, 12, 4);                            // base
+  ctx.fillStyle=PAL.goldHi; ctx.fillRect(cx-6, cy+4, 12, 1);
+  ctx.fillStyle=col;        ctx.fillRect(cx-1, cy-2, 2, 6);                             // stick
+  ctx.fillStyle=PAL.red;    ctx.beginPath(); ctx.arc(cx, cy-4, 3, 0, 7); ctx.fill();    // ball knob
+  ctx.fillStyle=PAL.redHi;  ctx.fillRect(cx-1, cy-5, 1, 1);
 }
-
-// Small bottom-bar tab: a mini STORY (scroll) / ARCADE (cabinet) glyph, gold when
-// active (with an underline), dim otherwise.
+// Bottom-bar tab: icon + label, gold with a top accent when active, dim otherwise.
 function drawTab(ctx, b, kind, active){
-  const cx=Math.round(b.x+b.w/2), cy=Math.round(b.y+b.h/2-1), col=active?PAL.gold:PAL.wallHi;
-  if(active){ ctx.globalAlpha=0.16; ctx.fillStyle=PAL.gold; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.globalAlpha=1; }
-  ctx.save(); ctx.globalAlpha=active?1:0.6;
-  if(kind==='story'){ ctx.fillStyle=col; ctx.fillRect(cx-7,cy-5,14,10);
-    ctx.fillStyle=PAL.blackD; for(let i=0;i<3;i++) ctx.fillRect(cx-4,cy-3+i*3,8,1); }
-  else { ctx.fillStyle=col; ctx.fillRect(cx-6,cy-6,12,13);
-    ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-4,cy-4,8,5); ctx.fillStyle=col; ctx.fillRect(cx-2,cy+3,4,1); }
+  if(active){ ctx.fillStyle='rgba(255,210,30,0.15)'; ctx.fillRect(b.x, b.y, b.w, b.h);   // highlight
+    ctx.fillStyle=PAL.gold; ctx.fillRect(b.x, b.y, b.w, 2); }                            // top accent
+  const col = active ? PAL.gold : PAL.wallHi, label = kind==='story' ? 'STORY' : 'ARCADE';
+  const lw = textWidth(label, 1), groupW = 16 + 5 + lw;
+  const gx = Math.round(b.x + (b.w - groupW)/2), icy = Math.round(b.y + b.h/2);
+  ctx.save(); ctx.globalAlpha = active ? 1 : 0.5;
+  if(kind==='story') drawScrollIcon(ctx, gx+8, icy, col); else drawJoystickIcon(ctx, gx+8, icy, col);
+  drawText(ctx, label, gx+16+5, icy-3, col, 1);
   ctx.restore();
-  if(active){ ctx.fillStyle=PAL.gold; ctx.fillRect(b.x+4, b.y+b.h-2, b.w-8, 1); }
 }
 
 // Combined mode screen: STORY (level grid, the default) and ARCADE (flying hero
@@ -112,7 +104,7 @@ function drawTab(ctx, b, kind, active){
 // clickable rects. `data.tab` = 'story' | 'arcade'.
 export function renderPlayModes(ctx, VW, VH, t, data){
   const tab = (data && data.tab) || 'story';
-  const barY = VH-26, barH = 22, contentBot = barY - 6;
+  const barTop = VH-32, barH = 28, contentBot = barTop - 4;
   starfield(ctx, VW, VH, t);
   const btns = [];
 
@@ -154,12 +146,17 @@ export function renderPlayModes(ctx, VW, VH, t, data){
     btns.push(b);
   }
 
-  // bottom bar: two tabs
-  ctx.fillStyle=PAL.wallD; ctx.fillRect(8, barY-2, VW-16, 1);
-  const tStory = { id:'tabStory',  x:VW/2-52, y:barY, w:48, h:barH };
-  const tArc   = { id:'tabArcade', x:VW/2+4,  y:barY, w:48, h:barH };
+  // bottom bar — a raised panel split into two clickable tabs
+  const bx = 6, bw = VW-12;
+  ctx.fillStyle = 'rgba(26,6,6,0.92)'; ctx.fillRect(bx, barTop, bw, barH);   // panel
+  ctx.fillStyle = PAL.wallEdge; ctx.fillRect(bx, barTop, bw, 1);             // bright top edge
+  ctx.fillStyle = PAL.wallD;    ctx.fillRect(bx, barTop+barH-1, bw, 1);      // bottom shade
+  const tw = Math.floor(bw/2);
+  const tStory = { id:'tabStory',  x:bx,    y:barTop, w:tw,    h:barH };
+  const tArc   = { id:'tabArcade', x:bx+tw, y:barTop, w:bw-tw, h:barH };
   drawTab(ctx, tStory, 'story',  tab==='story');
   drawTab(ctx, tArc,   'arcade', tab==='arcade');
+  ctx.fillStyle = PAL.wallD; ctx.fillRect(bx+tw, barTop+4, 1, barH-8);       // divider between tabs
   btns.push(tStory, tArc);
 
   // back (top-left gold chevron)

@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707m';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707m';
-import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderResult, renderWin, renderGameover } from './screens.js?v=20260707m';
-import { getState, patch, reset } from './state.js?v=20260707m';
-import * as sound from './sound.js?v=20260707m';
-import { generateLevel } from './levelgen.js?v=20260707m';
+import { LEVELS } from './levels.js?v=20260707n';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707n';
+import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderResult, renderWin, renderGameover } from './screens.js?v=20260707n';
+import { getState, patch, reset } from './state.js?v=20260707n';
+import * as sound from './sound.js?v=20260707n';
+import { generateLevel } from './levelgen.js?v=20260707n';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
