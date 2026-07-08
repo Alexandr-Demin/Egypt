@@ -1,6 +1,6 @@
-import { CONFIG } from './config.js?v=20260707p';
-import { getState, load, save } from './state.js?v=20260707p';
-import { startGame } from './game.js?v=20260707p';
+import { CONFIG } from './config.js?v=20260707q';
+import { getState, load, save } from './state.js?v=20260707q';
+import { startGame } from './game.js?v=20260707q';
 
 // =========== SANDSLIDE — Boot ===========
 // Load state, hand the canvas to the game core, then fade the preloader out.

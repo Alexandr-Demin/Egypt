@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707p';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707q';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -99,6 +99,49 @@ function drawTab(ctx, b, kind, active){
   ctx.restore();
 }
 
+// Gold-wallet readout: a small diamond coin + amount. `right`: right-align at x.
+function drawWallet(ctx, x, y, gold, right){
+  const s = String(gold||0), lw = 9 + textWidth(s, 1), gx = right ? Math.round(x-lw) : Math.round(x);
+  const dcx = gx+3, dcy = y+3;                                  // little gold diamond
+  ctx.fillStyle=PAL.gold;   ctx.fillRect(dcx-1,dcy-2,2,1); ctx.fillRect(dcx-2,dcy-1,4,1); ctx.fillRect(dcx-2,dcy,4,1); ctx.fillRect(dcx-1,dcy+1,2,1);
+  ctx.fillStyle=PAL.goldHi; ctx.fillRect(dcx-1,dcy-1,1,1);
+  drawText(ctx, s, gx+9, y, PAL.goldHi, 1);
+}
+
+// Pre-level shop: pick a level (from STORY) then this popup shows the gold balance
+// and lets you buy a SHIELD power-up before starting. Returns the clickable rects.
+export function renderPrelevel(ctx, VW, VH, t, data){
+  const gold=(data&&data.gold)||0, shields=(data&&data.shields)||0, cost=(data&&data.cost)||50, lvl=((data&&data.level)||0)+1;
+  starfield(ctx, VW, VH, t);
+  drawTextCentered(ctx, 'LEVEL '+lvl, VW/2, 22, PAL.gold, 3);
+  drawWallet(ctx, VW/2-16, 54, gold, false);
+  drawTextCentered(ctx, 'POWER-UPS', VW/2, 78, PAL.wallEdge, 1);
+  // SHIELD item card
+  const card = { x:24, y:96, w:VW-48, h:78 };
+  frame(ctx, card.x, card.y, card.w, card.h);
+  drawShieldBig(ctx, card.x+26, card.y+34);
+  drawText(ctx, 'SHIELD', card.x+48, card.y+16, PAL.goldHi, 1);
+  drawText(ctx, 'OWNED x'+shields, card.x+48, card.y+30, PAL.wallEdge, 1);
+  drawText(ctx, 'PROTECTS ~4S', card.x+48, card.y+44, PAL.wallEdge, 1);
+  const canBuy = gold>=cost;
+  const buy = { id:'buyShield', x:card.x+card.w-64, y:card.y+card.h-26, w:56, h:18 };
+  ctx.globalAlpha = canBuy?1:0.4; frameBtn(ctx, buy, 'BUY '+cost, 1); ctx.globalAlpha=1;
+  // hint
+  drawTextCentered(ctx, 'DOUBLE-TAP IN GAME TO USE', VW/2, 188, PAL.wallEdge, 1);
+  // PLAY + BACK
+  const play = { id:'playLevel',   x:VW/2-52, y:212, w:104, h:30 };
+  const back = { id:'prelevelBack', x:VW/2-32, y:250, w:64, h:16 };
+  frameBtn(ctx, play, 'PLAY', 2);
+  frameBtn(ctx, back, 'BACK', 1);
+  return [buy, play, back];
+}
+// Bigger shield emblem for the shop card, centred on (cx,cy).
+function drawShieldBig(ctx, cx, cy){
+  ctx.fillStyle=PAL.wallHi;  ctx.fillRect(cx-9,cy-11,18,10); ctx.fillRect(cx-7,cy-1,14,4); ctx.fillRect(cx-4,cy+3,8,3); ctx.fillRect(cx-2,cy+6,4,2);
+  ctx.fillStyle=PAL.lapisL;  ctx.fillRect(cx-6,cy-8,12,7);
+  ctx.fillStyle=PAL.goldHi;  ctx.fillRect(cx-1,cy-6,2,8);   ctx.fillRect(cx-4,cy-3,8,2);   // gold cross
+}
+
 // Combined mode screen: STORY (level grid, the default) and ARCADE (flying hero
 // in the dark + centred START) tabs, switched by a bottom bar. Returns all the
 // clickable rects. `data.tab` = 'story' | 'arcade'.
@@ -167,12 +210,14 @@ export function renderPlayModes(ctx, VW, VH, t, data){
   ctx.fillStyle=PAL.gold;
   ctx.fillRect(back.x+11,back.y+4,2,2); ctx.fillRect(back.x+9,back.y+6,2,2); ctx.fillRect(back.x+7,back.y+8,2,2);
   ctx.fillRect(back.x+9,back.y+10,2,2); ctx.fillRect(back.x+11,back.y+12,2,2);
+  drawWallet(ctx, VW-8, 8, data && data.gold, true);   // gold balance, top-right
   btns.push(back);
   return btns;
 }
 
 export function renderTitle(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);
+  drawWallet(ctx, 8, 8, data && data.gold, false);     // gold balance, top-left (gear is top-right)
   // title
   drawTextCentered(ctx, 'SANDSLIDE', VW/2, 46, PAL.blackD, 3);          // shadow
   drawTextCentered(ctx, 'SANDSLIDE', VW/2, 44, PAL.gold, 3);
@@ -194,6 +239,7 @@ export function renderTitle(ctx, VW, VH, t, data){
 
 export function renderMenu(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'MENU', VW/2, 26, PAL.gold, 3);
+  drawWallet(ctx, VW-8, 8, data && data.gold, true);
   const b1 = { id:'play',  x:30, y:60,  w:VW-60, h:30 };
   const b2 = { id:'sound', x:30, y:98,  w:VW-60, h:30 };
   const b3 = { id:'reset', x:30, y:136, w:VW-60, h:30 };
@@ -213,6 +259,7 @@ export function renderMenu(ctx, VW, VH, t, data){
 // each tool is a labelled toggle button. First tool: GOD MODE (immortality).
 export function renderDebug(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'DEBUG', VW/2, 26, PAL.gold, 3);
+  drawWallet(ctx, VW-8, 8, data && data.gold, true);
   drawTextCentered(ctx, 'DEVELOPER TOOLS', VW/2, 48, PAL.wallEdge, 1);
   const god = { id:'god', x:24, y:76, w:VW-48, h:34 };
   const on = !!(data && data.god);
@@ -227,7 +274,9 @@ export function renderDebug(ctx, VW, VH, t, data){
 }
 
 function outcome(ctx, VW, VH, t, spr, glowCol, title, titleCol, data){
-  starfield(ctx, VW, VH, t);  // glow + emblem
+  starfield(ctx, VW, VH, t);
+  drawWallet(ctx, VW-8, 8, data && data.gold, true);
+  // glow + emblem
   ctx.globalAlpha = 0.14 + 0.05*Math.sin(t*2); ctx.fillStyle = glowCol;
   ctx.beginPath(); ctx.arc(VW/2, 92, 44, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = false; ctx.drawImage(sprite(spr), VW/2-24, 68, 48, 48);
@@ -257,9 +306,10 @@ export function renderGameover(ctx, VW, VH, t, data){
 
 // Level-result dialog: stars pop in one by one, then a coin bar fills to the
 // collected percentage; CONTINUE advances. `r.t` is the animation clock (s).
-export function renderResult(ctx, VW, VH, t, r){
+export function renderResult(ctx, VW, VH, t, r, data){
   const rt = r ? r.t : 0, stars = r ? r.stars : 0, pct = r ? r.pct : 0;
-  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'CLEARED', VW/2, 34, PAL.gold, 3);
+  starfield(ctx, VW, VH, t);  drawWallet(ctx, VW-8, 8, data && data.gold, true);
+  drawTextCentered(ctx, 'CLEARED', VW/2, 34, PAL.gold, 3);
   if(r && r.name) drawTextCentered(ctx, r.name, VW/2, 66, PAL.goldHi, 1);
   // three stars: earned ones fly in (scale-pop) at staggered times
   for(let k=0;k<3;k++){

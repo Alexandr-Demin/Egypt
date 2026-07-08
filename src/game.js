@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707p';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707p';
-import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderResult, renderWin, renderGameover } from './screens.js?v=20260707p';
-import { getState, patch, reset } from './state.js?v=20260707p';
-import * as sound from './sound.js?v=20260707p';
-import { generateLevel } from './levelgen.js?v=20260707p';
+import { LEVELS } from './levels.js?v=20260707q';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707q';
+import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderPrelevel, renderResult, renderWin, renderGameover } from './screens.js?v=20260707q';
+import { getState, patch, reset, save } from './state.js?v=20260707q';
+import * as sound from './sound.js?v=20260707q';
+import { generateLevel } from './levelgen.js?v=20260707q';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -21,6 +21,7 @@ const SPIKE_UP  = 0.8;                          // how long extended spikes stay
 // arcade: rising "cursed sand" flood — resets each level, accelerates with depth
 const FILL_BASE = 5, FILL_RAMP = 2.0;           // px/s base + per cleared level
 const FLY_SPEED = 20, WARP_DIST = 14;           // real flythrough: tiles/s + rise/drop distance (tiles)
+const SHIELD_DUR = 4.0, SHIELD_COST = 50;       // power-up: shield seconds + gold cost per shield
 // pufferfish cycle: idle (small) → inflate → puffed (lethal 3x3) → deflate
 const PUFF_IDLE=2.5, PUFF_INFLATE=0.6, PUFF_HOLD=0.8, PUFF_DEFLATE=0.5;
 const PUFF_PERIOD = PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD+PUFF_DEFLATE;
@@ -58,6 +59,7 @@ const G = {
   arcade:false, arcadeDepth:0, fill:null, arcadeFly:null,   // arcade run state
   godMode:false,                                            // debug: immortality
   modeTab:'story',                                          // mode screen tab: 'story' | 'arcade'
+  shieldT:0, pendingLevel:0,                                // shield power-up timer + level picked in the shop
 };
 
 // ---------------- lifecycle ----------------
@@ -84,6 +86,8 @@ export function startGame(canvas){
       intro:G.intro, hasStartCell:!!G.startCell, heroAngle:G.heroAngle}),
     win:()=>{ if(G.scene==='play' && G.player && !G.dead) exitReached(); },   // QA: trigger exit/fly
     god:()=>G.godMode, kill:()=>{ if(G.scene==='play' && G.player) die(); },   // QA: god state / force death
+    shield:()=>Math.round(G.shieldT*100)/100, dtap:()=>activateShield(),       // QA: shield timer / double-tap
+    gold:()=>getState()?.progress?.gold||0, shields:()=>getState()?.progress?.shields||0,
   };
 }
 
@@ -295,7 +299,9 @@ function bindInput(){
   });
   const TH=8;                 // swipe threshold (px) — small = very responsive
   let ds=null, fired=false;
-  let dsOnExit=false;
+  let dsOnExit=false, lastTap=0;
+  const playTap = ()=>{ const now=Date.now();               // double-tap in play → activate shield
+    if(now-lastTap<300){ lastTap=0; activateShield(); } else lastTap=now; };
   const down = (cx,cy)=>{ ds={x:cx,y:cy}; fired=false;
     dsOnExit = G.scene==='play' && !G.confirmExit && inRect(toVirtual(cx,cy), EXIT_BTN); };  // gesture on exit btn
   const swipe = (cx,cy)=>{    // fire the direction the INSTANT the swipe crosses TH (mid-drag)
@@ -310,7 +316,8 @@ function bindInput(){
     const v=toVirtual(cx,cy);
     if(G.confirmExit){ if(!moved) handleTap(v.x,v.y); }        // confirm dialog (YES/NO)
     else if(dsOnExit){ if(inRect(v, EXIT_BTN)) onButton('exit'); }   // open the exit dialog
-    else if(G.scene==='play'){ if(!fired && moved) setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')); }
+    else if(G.scene==='play'){ if(!fired && moved) setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+      else if(!moved) playTap(); }                          // tap (no swipe): double-tap → shield
     else if(!moved){ handleTap(v.x,v.y); }
     ds=null; fired=false; dsOnExit=false;
   };
@@ -338,10 +345,15 @@ function onButton(id){
   else if(id==='retry') transition(()=> G.arcade ? startArcade() : G.endless ? startEndless() : startRun(G.runStart||0));
   else if(id==='exit') G.confirmExit = true;                        // open in-match confirm dialog
   else if(id==='confirmNo') G.confirmExit = false;                  // stay in the match
-  else if(id==='confirmYes'){ G.confirmExit = false; transition(()=>{ G.scene='title'; }); } // leave
+  else if(id==='confirmYes'){ G.confirmExit = false; save(); transition(()=>{ G.scene='title'; }); } // leave (bank gold)
   else if(id==='continue') nextLevel();                             // result screen → advance
-  else if(id && id.startsWith('lvl')){ const i=+id.slice(3);           // pick a level card
-    if(i>=0 && i<unlockedCount()) transition(()=>startRun(i)); }        // ignore locked picks
+  else if(id && id.startsWith('lvl')){ const i=+id.slice(3);           // pick a level card → shop popup
+    if(i>=0 && i<unlockedCount()){ G.pendingLevel=i; transition(()=>{ G.scene='prelevel'; }); } }
+  else if(id==='buyShield'){ const s=getState();                     // shop: buy a shield with gold
+    if((s.progress.gold||0)>=SHIELD_COST){ s.progress.gold-=SHIELD_COST; s.progress.shields=(s.progress.shields||0)+1; save();
+      G.flash=0.15; G.flashCol=PAL.goldHi; } else { G.flash=0.2; G.flashCol=PAL.red; } }
+  else if(id==='playLevel') transition(()=>startRun(G.pendingLevel));   // shop → start the picked level
+  else if(id==='prelevelBack') transition(()=>{ G.scene='select'; G.modeTab='story'; });
   else if(id==='menu') transition(()=>{ G.scene='title'; });
   else if(id==='settings') transition(()=>{ G.scene='menu'; });
   else if(id==='sound') sound.setEnabled(!sound.isEnabled());          // toggle, stay on menu
@@ -398,6 +410,7 @@ function update(dt){
     }
     if(G.player) updateCamera(dt); return;
   }
+  if(G.shieldT>0) G.shieldT=Math.max(0, G.shieldT-dt);   // shield power-up countdown (active play only)
 
   // player slide
   const p=G.player;
@@ -475,6 +488,7 @@ function enterCell(x,y){
   if(x<0||y<0||x>=G.COLS||y>=G.ROWS) return;
   const k=x+','+y;
   if(G.coins.has(k)){ G.coins.delete(k); G.coinsLeft--; G.score++;
+    const s=getState(); if(s&&s.progress) s.progress.gold=(s.progress.gold||0)+1;   // bank into the wallet (live)
     burst(x*TILE+8, y*TILE+8, 6, PAL.gold, 30, 0.5); sound.play('tap'); G.flash=0.12; G.flashCol=PAL.goldHi; }
   if(G.stars.has(k)){ G.stars.delete(k);   // rating pickup — bigger pop, no gold (coins are the currency)
     burst(x*TILE+8, y*TILE+8, 14, PAL.goldHi, 46, 0.7); sound.play('win'); G.flash=0.22; G.flashCol=PAL.goldHi; }
@@ -499,13 +513,24 @@ function exitReached(){
 }
 function die(){
   if(G.dead) return;
-  if(G.godMode){ G.flash=Math.max(G.flash,0.08); G.flashCol=PAL.lapisL; return; }   // debug immortality: shrug it off
+  if(G.godMode || G.shieldT>0){ G.flash=Math.max(G.flash,0.12); G.flashCol=PAL.lapisL; return; }   // god / active shield: shrug it off
   G.dead=true; G._won=false; G.player.moving=false;
   G.lives--; G.shake=6; G.flash=0.6; G.flashCol=PAL.red; G.hs=0.12;
   burst(G.player.fx*TILE+8, G.player.fy*TILE+8, 16, PAL.red, 60, 0.7);
   burst(G.player.fx*TILE+8, G.player.fy*TILE+8, 10, PAL.sandD, 40, 0.7, 30);
   sound.play('lose');
   G.deadTimer = G.lives<=0 ? 0.7 : 0.55;
+}
+// Shield power-up (story only): double-tap consumes one owned shield for SHIELD_DUR
+// seconds of full invulnerability.
+function activateShield(){
+  if(G.scene!=='play' || G.arcade || G.endless || G.dead || G.intro!==null || G.arcadeFly || !G.player) return;
+  if(G.shieldT>0) return;                                    // already up
+  const s=getState(), have=(s&&s.progress&&s.progress.shields)||0;
+  if(have<=0){ G.flash=Math.max(G.flash,0.15); G.flashCol=PAL.wallHi; return; }   // none owned → nudge
+  s.progress.shields=have-1; save();
+  G.shieldT=SHIELD_DUR; G.flash=0.3; G.flashCol=PAL.lapisL; sound.play('win');
+  burst(G.player.fx*TILE+8, G.player.fy*TILE+8, 14, PAL.lapisL, 42, 0.6);
 }
 // Level cleared → rating = collected star pickups (0..3); coin % drives the gold bar only.
 function showResult(){
@@ -553,15 +578,17 @@ function render(){
   const ctx=G.ctx; ctx.imageSmoothingEnabled=false;
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,VW,VH);
 
-  if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, arcadeBest:getState()?.progress?.arcadeBest||0}); }
-  else if(G.scene==='select'){ G.buttons=renderPlayModes(ctx,VW,VH,G.t,{tab:G.modeTab, unlocked:unlockedCount(), total:LEVELS.length, stars:getState()?.progress?.stars||{}, arcadeBest:getState()?.progress?.arcadeBest||0}); }
-  else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
-  else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
-  else if(G.scene==='debug'){ G.buttons=renderDebug(ctx,VW,VH,G.t,{god:G.godMode}); }
-  else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
+  const gold=getState()?.progress?.gold||0;
+  if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, arcadeBest:getState()?.progress?.arcadeBest||0, gold}); }
+  else if(G.scene==='select'){ G.buttons=renderPlayModes(ctx,VW,VH,G.t,{tab:G.modeTab, unlocked:unlockedCount(), total:LEVELS.length, stars:getState()?.progress?.stars||{}, arcadeBest:getState()?.progress?.arcadeBest||0, gold}); }
+  else if(G.scene==='prelevel'){ G.buttons=renderPrelevel(ctx,VW,VH,G.t,{level:G.pendingLevel, gold, shields:getState()?.progress?.shields||0, cost:SHIELD_COST}); }
+  else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result,{gold}); }
+  else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled(), gold}); }
+  else if(G.scene==='debug'){ G.buttons=renderDebug(ctx,VW,VH,G.t,{god:G.godMode, gold}); }
+  else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0, gold}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,
     best:(G.arcade?getState()?.progress?.arcadeBest:getState()?.progress?.best)||0,
-    depth:G.endless?G.depth:null, bestDepth:getState()?.progress?.bestDepth||0}); }
+    depth:G.endless?G.depth:null, bestDepth:getState()?.progress?.bestDepth||0, gold}); }
   else { renderPlay(ctx); G.buttons = G.confirmExit ? drawConfirm(ctx) : [EXIT_BTN]; }
 
   // flash overlay
@@ -650,6 +677,10 @@ function renderPlay(ctx){
       if(a>0){ ctx.save(); ctx.globalAlpha=a; ctx.translate(Math.round(cx), Math.round(cy+ddy)); ctx.rotate(ang); ctx.scale(G.psx,G.psy);
         ctx.drawImage(sprite((p.moving||G.arcadeFly)?'ball':'anubis'), -8, -8); ctx.restore(); ctx.globalAlpha=1; }
     }
+    // active shield: a pulsing protective bubble around the hero
+    if(G.shieldT>0){ const rr=11+Math.sin(G.t*10)*1.5, blink=G.shieldT<1.2?(0.4+0.6*Math.abs(Math.sin(G.t*14))):1;
+      ctx.globalAlpha=0.6*blink; ctx.strokeStyle=PAL.lapisL; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy,rr,0,7); ctx.stroke();
+      ctx.globalAlpha=0.12*blink; ctx.fillStyle=PAL.lapisL; ctx.beginPath(); ctx.arc(cx,cy,rr,0,7); ctx.fill(); ctx.globalAlpha=1; }
   }
   // entrance pyramid (over the hidden hero): animates during intro, then a faint ghost
   drawEntrance(ctx, bx, by);
@@ -977,6 +1008,17 @@ function drawHUD(ctx){
   drawTextCentered(ctx, G.levelName, VW/2, 7, PAL.goldHi, 1);
   // score (right)
   const s='GOLD '+G.score; drawText(ctx, s, VW-6-textWidth(s,1), 8, PAL.gold, 1);
-  // debug immortality marker (bottom-left, out of the way)
-  if(G.godMode) drawText(ctx, 'GOD', 4, VH-9, PAL.fugu, 1);
+  // shield power-up status (story only): active timer, else owned count
+  if(!G.arcade && !G.endless){
+    const sh=getState()?.progress?.shields||0;
+    if(G.shieldT>0){ const txt='SHIELD '+Math.ceil(G.shieldT); drawText(ctx, txt, 6, VH-9, PAL.lapisL, 1); }
+    else { drawShieldIcon(ctx, 9, VH-8, PAL.wallHi); drawText(ctx, 'x'+sh, 16, VH-9, PAL.goldHi, 1); }
+  }
+  // debug immortality marker (bottom-right, out of the way)
+  if(G.godMode) drawText(ctx, 'GOD', VW-6-textWidth('GOD',1), VH-9, PAL.fugu, 1);
+}
+// small shield glyph centred-ish at (x,y top-left)
+function drawShieldIcon(ctx, x, y, col){
+  ctx.fillStyle=col; ctx.fillRect(x-3,y-1,6,3); ctx.fillRect(x-2,y+2,4,1); ctx.fillRect(x-1,y+3,2,1);
+  ctx.fillStyle=PAL.lapisL; ctx.fillRect(x-1,y,2,2);
 }
