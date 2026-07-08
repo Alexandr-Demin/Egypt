@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707r';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707r';
-import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderPrelevel, renderResult, renderWin, renderGameover } from './screens.js?v=20260707r';
-import { getState, patch, reset, save } from './state.js?v=20260707r';
-import * as sound from './sound.js?v=20260707r';
-import { generateLevel } from './levelgen.js?v=20260707r';
+import { LEVELS } from './levels.js?v=20260707s';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707s';
+import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderPrelevel, renderResult, renderWin, renderGameover } from './screens.js?v=20260707s';
+import { getState, patch, reset, save } from './state.js?v=20260707s';
+import * as sound from './sound.js?v=20260707s';
+import { generateLevel } from './levelgen.js?v=20260707s';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -228,7 +228,7 @@ function parse(def){
     G.lasers.push({ x:e.x, y:e.y, axis:e.axis, cells });
     for(const [cx,cy] of cells) G.laserCells.add(cx+','+cy);
   }
-  G.bufDir = null; G.heroAngle = 0;
+  G.bufDir = null; G.heroAngle = 0; G.shieldT = 0;   // shield never carries into a freshly-loaded level
   G.startCell = G.player ? { x:G.player.cx, y:G.player.cy } : null;  // entrance animation site
   G.intro = 0;                       // start the level-entrance intro
   const tgt = camTarget();          // snap camera onto the player at load
