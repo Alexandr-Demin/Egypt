@@ -9,53 +9,89 @@
   <title>SANDSLIDE</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="styles/style.css?v=20260707n" />
+  <link rel="stylesheet" href="styles/style.css?v=20260707o" />
   <style>
-    /* ===== Inline preload — appears instantly, no dependency on style.css ===== */
-    #preload{
-      position:fixed;inset:0;z-index:99999;
-      background:radial-gradient(ellipse at 50% 35%, #2a1c0c 0%, #140d06 60%, #0a0603 100%);
-      display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;
-      transition:opacity .5s ease-out, visibility .5s ease-out;
-      font-family:system-ui,'Segoe UI',sans-serif;color:#f3e6c8;
-    }
-    #preload.hide{opacity:0;visibility:hidden;pointer-events:none}
-    #preload .pl-title{font-weight:900;letter-spacing:.32em;font-size:26px;color:#ffcf6b;
-      text-shadow:0 2px 18px rgba(255,180,60,.4)}
-    #preload .pl-bar{width:min(70vw,320px);height:10px;border-radius:99px;overflow:hidden;
-      background:rgba(0,0,0,.45);border:1px solid rgba(255,207,107,.3)}
-    #preload .pl-fill{height:100%;width:0%;border-radius:99px;
-      background:linear-gradient(90deg,#ffcf6b,#e0972f);transition:width .28s cubic-bezier(.4,0,.2,1)}
-    #preload .pl-tag{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:rgba(243,230,200,.6)}
+    /* ===== Inline preload — canvas animation, no dependency on style.css ===== */
+    #preload{ position:fixed; inset:0; z-index:99999; background:#0c0406;
+      transition:opacity .5s ease-out, visibility .5s ease-out; }
+    #preload.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+    #pl-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
   </style>
 </head>
 <body>
-  <!-- Preload screen. main.js calls window.__egyptReady() when init is done. -->
+  <!-- Preload screen: blocks fall into a pyramid, then Anubis flies in from the top.
+       main.js calls window.__egyptReady() when init is done. -->
   <div id="preload" role="status" aria-hidden="false">
-    <div class="pl-title">SANDSLIDE</div>
-    <div class="pl-bar"><div class="pl-fill" id="pl-fill"></div></div>
-    <div class="pl-tag" id="pl-tag">Loading…</div>
+    <canvas id="pl-canvas"></canvas>
   </div>
   <script>
-    // Lightweight inline preloader. setTimeout (not RAF) so it ticks in hidden tabs.
     (function(){
-      var fill=document.getElementById('pl-fill'), pre=document.getElementById('preload'),
-          tag=document.getElementById('pl-tag');
-      try{ if((localStorage.getItem('egypt.lang')||'en')==='ru') tag.textContent='Загрузка…'; }catch(e){}
-      var start=Date.now(), done=false, cur=0;
-      function set(p){ cur=p; fill.style.width=p+'%'; }
-      (function tick(){ if(done) return;
-        var p=Math.min(90,((Date.now()-start)/2200)*90); set(p);
-        if(p<90) setTimeout(tick,33);
-      })();
-      window.__egyptReady=function(){
-        if(done) return; done=true; var t0=Date.now(), from=cur;
-        (function fin(){ var k=Math.min(1,(Date.now()-t0)/280); set(from+(100-from)*k);
-          if(k<1) setTimeout(fin,33); else setTimeout(function(){ pre.classList.add('hide'); },220);
-        })();
-      };
-      // Safety: never trap the player behind the splash.
-      setTimeout(function(){ if(!done) window.__egyptReady(); }, 6000);
+      var pre=document.getElementById('preload'), canvas=document.getElementById('pl-canvas'), ctx=canvas.getContext('2d');
+      var dpr=Math.max(1, Math.min(3, window.devicePixelRatio||1));
+      var W=0, Hh=0, U=16, cx=0, baseY=0, apexY=0, blocks=[], stars=[];
+      var COLS=[7,5,3,1], STAGGER=55, FALL=340;
+      // gold jackal (Anubis) 16x16 — the "flying in" hero; scaled up, no smoothing.
+      var anubis=(function(){ var s=document.createElement('canvas'); s.width=16; s.height=16; var x=s.getContext('2d');
+        var y='#ffd21e',dk='#c08800',hi='#fff6b0',blk='#0a0404',w='#ffeede';
+        function R(X,Y,Wd,Ht,c){ x.fillStyle=c; x.fillRect(X,Y,Wd,Ht); }
+        R(4,0,1,2,y);R(3,2,3,3,y);R(4,2,1,2,blk); R(11,0,1,2,y);R(10,2,3,3,y);R(11,2,1,2,blk);
+        R(3,4,10,7,y);R(3,4,10,1,hi);R(3,10,10,1,dk);
+        R(5,6,2,2,blk);R(9,6,2,2,blk);R(5,6,1,1,w);R(9,6,1,1,w);
+        R(6,9,4,2,blk);R(7,8,2,1,dk); R(6,11,4,3,y);R(6,11,4,1,dk); R(5,14,2,2,y);R(9,14,2,2,y);
+        return s; })();
+      function layout(){
+        W=window.innerWidth; Hh=window.innerHeight;
+        canvas.width=Math.round(W*dpr); canvas.height=Math.round(Hh*dpr);
+        canvas.style.width=W+'px'; canvas.style.height=Hh+'px';
+        ctx.setTransform(dpr,0,0,dpr,0,0); ctx.imageSmoothingEnabled=false;
+        U=Math.max(10, Math.min(26, Math.floor(Math.min(W,Hh)/14)));
+        cx=Math.round(W/2); baseY=Math.round(Hh*0.66);
+        blocks=[]; var idx=0;
+        for(var r=0;r<COLS.length;r++){ var n=COLS[r], x0=cx-n*U/2, ty=baseY-(r+1)*U;
+          for(var c=0;c<n;c++) blocks.push({ tx:Math.round(x0+c*U), ty:Math.round(ty), idx:idx++ }); }
+        apexY=baseY-COLS.length*U;
+        stars=[]; for(var i=0;i<64;i++) stars.push({ x:(i*97+((i*i)%13))%W, y:(i*57+((i*i)%29))%Hh, g:(i%5===0) });
+      }
+      window.addEventListener('resize', layout); layout();
+
+      var startMs=Date.now(), start=performance.now(), done=false, stopped=false, MIN_MS=2200;
+
+      function frame(){
+        if(stopped) return;
+        var el=performance.now()-start;
+        ctx.fillStyle='#0c0406'; ctx.fillRect(0,0,W,Hh);
+        for(var i=0;i<stars.length;i++){ var st=stars[i];
+          ctx.globalAlpha=0.18+0.5*(0.5+0.5*Math.sin(el/500+i));
+          ctx.fillStyle=st.g?'#ffd21e':'#ff7a5c'; ctx.fillRect(st.x, st.y, 1, 1); }
+        ctx.globalAlpha=1;
+        ctx.textAlign='center'; ctx.font="900 "+Math.round(U*1.5)+"px 'Segoe UI',system-ui,sans-serif";
+        ctx.fillStyle='#0a0404'; ctx.fillText('SANDSLIDE', cx+2, Math.round(Hh*0.2)+2);
+        ctx.fillStyle='#ffd21e'; ctx.fillText('SANDSLIDE', cx, Math.round(Hh*0.2));
+        // blocks fall (bottom rows first) and stack into the pyramid
+        for(var b=0;b<blocks.length;b++){ var bl=blocks[b], bs=el-bl.idx*STAGGER;
+          if(bs<0) continue;
+          var fp=Math.min(1, bs/FALL), e=fp*fp, by=bl.ty-(1-e)*(Hh*0.75);
+          var sq=(fp>0.82&&fp<1)?Math.sin((fp-0.82)/0.18*Math.PI)*2:0;
+          ctx.fillStyle='#ffd21e'; ctx.fillRect(bl.tx, Math.round(by+sq), U-1, U-1-sq);
+          ctx.fillStyle='#fff6b0'; ctx.fillRect(bl.tx, Math.round(by+sq), U-1, 1);
+          ctx.fillStyle='#c08800'; ctx.fillRect(bl.tx, Math.round(by+U-2), U-1, 1);
+        }
+        // Anubis flies down onto the capstone once the pyramid is nearly built
+        var cs=el-((blocks.length-1)*STAGGER + FALL - 120);
+        if(cs>0){ var cS=Math.round(U*2.4), cp=Math.min(1, cs/720), ce=1-Math.pow(1-cp,3);
+          var landY=apexY-cS+Math.round(U*0.15), cyp=cp>=1 ? landY+Math.sin(el/300)*3 : -cS+(landY+cS)*ce;
+          if(cp<1){ ctx.strokeStyle='rgba(255,246,176,0.7)'; ctx.lineWidth=1;
+            for(var o=-1;o<=1;o++){ ctx.beginPath(); ctx.moveTo(cx+o*5, cyp-10); ctx.lineTo(cx+o*5, cyp-24); ctx.stroke(); } }
+          ctx.imageSmoothingEnabled=false; ctx.drawImage(anubis, Math.round(cx-cS/2), Math.round(cyp), cS, cS);
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+
+      function fadeOut(){ var wait=Math.max(0, MIN_MS-(Date.now()-startMs));
+        setTimeout(function(){ pre.classList.add('hide'); setTimeout(function(){ stopped=true; }, 600); }, wait+150); }
+      window.__egyptReady=function(){ if(done) return; done=true; fadeOut(); };
+      setTimeout(function(){ if(!done) window.__egyptReady(); }, 6000);   // safety
     })();
   </script>
 
@@ -70,6 +106,6 @@
     <div class="toasts" id="toasts"></div>
   </div>
 
-  <script type="module" src="src/main.js?v=20260707n"></script>
+  <script type="module" src="src/main.js?v=20260707o"></script>
 </body>
 </html>
