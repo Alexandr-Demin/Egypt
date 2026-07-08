@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20260707q';
+import { CONFIG } from './config.js?v=20260707r';
 
 // =========== State & persistence ===========
 // One source of truth. getState() is read-only; mutate via patch()/save().
@@ -15,8 +15,8 @@ const DEFAULT = () => ({
   tutorialBuild: null,
 
   // gameplay progress (fill in as the game grows)
-  // gold = lifetime wallet (currency for power-ups); shields = owned shield count
-  progress: { level: 1, best: 0, gold: 0, shields: 0 },
+  // gold = lifetime wallet; shields = owned booster count; shieldLvl = duration upgrade
+  progress: { level: 1, best: 0, gold: 0, shields: 0, shieldLvl: 0 },
 
   // stats
   stats: { runs: 0, score: 0 },

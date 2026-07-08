@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707q';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707q';
-import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderPrelevel, renderResult, renderWin, renderGameover } from './screens.js?v=20260707q';
-import { getState, patch, reset, save } from './state.js?v=20260707q';
-import * as sound from './sound.js?v=20260707q';
-import { generateLevel } from './levelgen.js?v=20260707q';
+import { LEVELS } from './levels.js?v=20260707r';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707r';
+import { renderTitle, renderMenu, renderDebug, renderPlayModes, renderPrelevel, renderResult, renderWin, renderGameover } from './screens.js?v=20260707r';
+import { getState, patch, reset, save } from './state.js?v=20260707r';
+import * as sound from './sound.js?v=20260707r';
+import { generateLevel } from './levelgen.js?v=20260707r';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -21,7 +21,10 @@ const SPIKE_UP  = 0.8;                          // how long extended spikes stay
 // arcade: rising "cursed sand" flood — resets each level, accelerates with depth
 const FILL_BASE = 5, FILL_RAMP = 2.0;           // px/s base + per cleared level
 const FLY_SPEED = 20, WARP_DIST = 14;           // real flythrough: tiles/s + rise/drop distance (tiles)
-const SHIELD_DUR = 4.0, SHIELD_COST = 50;       // power-up: shield seconds + gold cost per shield
+// SHIELD booster (consumable, bought with gold) + a DURATION upgrade (permanent).
+const SHIELD_BASE = 4.0, SHIELD_STEP = 1.5, SHIELD_MAXLVL = 3, SHIELD_COST = 50;
+const upgradeCost = (lvl) => 150 * (lvl + 1);   // gold to go from shieldLvl -> lvl+1
+const shieldDur   = () => SHIELD_BASE + ((getState()?.progress?.shieldLvl)||0) * SHIELD_STEP;
 // pufferfish cycle: idle (small) → inflate → puffed (lethal 3x3) → deflate
 const PUFF_IDLE=2.5, PUFF_INFLATE=0.6, PUFF_HOLD=0.8, PUFF_DEFLATE=0.5;
 const PUFF_PERIOD = PUFF_IDLE+PUFF_INFLATE+PUFF_HOLD+PUFF_DEFLATE;
@@ -339,6 +342,7 @@ function onButton(id){
   if(id==='start') transition(()=>{ G.scene='select'; G.modeTab='story'; });   // title tap → mode screen (story)
   else if(id==='tabStory') G.modeTab='story';                        // bottom bar: switch tab (instant)
   else if(id==='tabArcade') G.modeTab='arcade';
+  else if(id==='tabShop') G.modeTab='shop';
   else if(id==='arcadeStart') startArcade();                         // START → seamless fly-in to level 1 (no fade)
   else if(id==='play') transition(()=>{ G.scene='select'; G.modeTab='story'; });  // (legacy) PLAY → level select
   else if(id==='endless') transition(startEndless);                  // (legacy) ENDLESS → generated descent
@@ -352,6 +356,10 @@ function onButton(id){
   else if(id==='buyShield'){ const s=getState();                     // shop: buy a shield with gold
     if((s.progress.gold||0)>=SHIELD_COST){ s.progress.gold-=SHIELD_COST; s.progress.shields=(s.progress.shields||0)+1; save();
       G.flash=0.15; G.flashCol=PAL.goldHi; } else { G.flash=0.2; G.flashCol=PAL.red; } }
+  else if(id==='upgradeShield'){ const s=getState(), lvl=s.progress.shieldLvl||0;   // shop: permanent duration upgrade
+    if(lvl<SHIELD_MAXLVL){ const cost=upgradeCost(lvl);
+      if((s.progress.gold||0)>=cost){ s.progress.gold-=cost; s.progress.shieldLvl=lvl+1; save(); G.flash=0.15; G.flashCol=PAL.goldHi; }
+      else { G.flash=0.2; G.flashCol=PAL.red; } } }
   else if(id==='playLevel') transition(()=>startRun(G.pendingLevel));   // shop → start the picked level
   else if(id==='prelevelBack') transition(()=>{ G.scene='select'; G.modeTab='story'; });
   else if(id==='menu') transition(()=>{ G.scene='title'; });
@@ -360,6 +368,7 @@ function onButton(id){
   else if(id==='reset'){ reset(); G.flash=0.4; G.flashCol=PAL.goldHi; } // wipe progress + flash
   else if(id==='debug') transition(()=>{ G.scene='debug'; });          // open developer menu
   else if(id==='god'){ G.godMode=!G.godMode; G.flash=0.2; G.flashCol=G.godMode?PAL.fugu:PAL.wallD; } // toggle immortality
+  else if(id==='giveGold'){ const s=getState(); if(s&&s.progress){ s.progress.gold=(s.progress.gold||0)+10000; save(); } G.flash=0.25; G.flashCol=PAL.goldHi; } // debug: +10000
 }
 
 function setDir(d){
@@ -529,7 +538,7 @@ function activateShield(){
   const s=getState(), have=(s&&s.progress&&s.progress.shields)||0;
   if(have<=0){ G.flash=Math.max(G.flash,0.15); G.flashCol=PAL.wallHi; return; }   // none owned → nudge
   s.progress.shields=have-1; save();
-  G.shieldT=SHIELD_DUR; G.flash=0.3; G.flashCol=PAL.lapisL; sound.play('win');
+  G.shieldT=shieldDur(); G.flash=0.3; G.flashCol=PAL.lapisL; sound.play('win');
   burst(G.player.fx*TILE+8, G.player.fy*TILE+8, 14, PAL.lapisL, 42, 0.6);
 }
 // Level cleared → rating = collected star pickups (0..3); coin % drives the gold bar only.
@@ -580,8 +589,10 @@ function render(){
 
   const gold=getState()?.progress?.gold||0;
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, arcadeBest:getState()?.progress?.arcadeBest||0, gold}); }
-  else if(G.scene==='select'){ G.buttons=renderPlayModes(ctx,VW,VH,G.t,{tab:G.modeTab, unlocked:unlockedCount(), total:LEVELS.length, stars:getState()?.progress?.stars||{}, arcadeBest:getState()?.progress?.arcadeBest||0, gold}); }
-  else if(G.scene==='prelevel'){ G.buttons=renderPrelevel(ctx,VW,VH,G.t,{level:G.pendingLevel, gold, shields:getState()?.progress?.shields||0, cost:SHIELD_COST}); }
+  else if(G.scene==='select'){ const pr=getState()?.progress||{}; const slv=pr.shieldLvl||0;
+    G.buttons=renderPlayModes(ctx,VW,VH,G.t,{tab:G.modeTab, unlocked:unlockedCount(), total:LEVELS.length, stars:pr.stars||{}, arcadeBest:pr.arcadeBest||0, gold,
+      shop:{ shields:pr.shields||0, shieldCost:SHIELD_COST, shieldLvl:slv, maxLvl:SHIELD_MAXLVL, upCost:upgradeCost(slv), dur:shieldDur() } }); }
+  else if(G.scene==='prelevel'){ G.buttons=renderPrelevel(ctx,VW,VH,G.t,{level:G.pendingLevel, gold, shields:getState()?.progress?.shields||0, cost:SHIELD_COST, dur:shieldDur()}); }
   else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result,{gold}); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled(), gold}); }
   else if(G.scene==='debug'){ G.buttons=renderDebug(ctx,VW,VH,G.t,{god:G.godMode, gold}); }
@@ -1017,8 +1028,9 @@ function drawHUD(ctx){
   // debug immortality marker (bottom-right, out of the way)
   if(G.godMode) drawText(ctx, 'GOD', VW-6-textWidth('GOD',1), VH-9, PAL.fugu, 1);
 }
-// small shield glyph centred-ish at (x,y top-left)
+// mini heraldic shield glyph (gold rim, crimson field, gold star pip) at (x,y ~centre)
 function drawShieldIcon(ctx, x, y, col){
-  ctx.fillStyle=col; ctx.fillRect(x-3,y-1,6,3); ctx.fillRect(x-2,y+2,4,1); ctx.fillRect(x-1,y+3,2,1);
-  ctx.fillStyle=PAL.lapisL; ctx.fillRect(x-1,y,2,2);
+  ctx.fillStyle=col;         ctx.fillRect(x-4,y-3,9,4); ctx.fillRect(x-3,y+1,7,1); ctx.fillRect(x-2,y+2,5,1); ctx.fillRect(x-1,y+3,3,1); ctx.fillRect(x,y+4,1,1); // rim
+  ctx.fillStyle=PAL.wallD;   ctx.fillRect(x-3,y-2,7,3); ctx.fillRect(x-2,y+1,5,1); ctx.fillRect(x-1,y+2,3,1);  // crimson field
+  ctx.fillStyle=PAL.goldHi;  ctx.fillRect(x,y-1,1,1); ctx.fillRect(x-1,y,3,1);   // little star/cross
 }

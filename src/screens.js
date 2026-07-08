@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707q';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707r';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -86,16 +86,27 @@ function drawJoystickIcon(ctx, cx, cy, col){
   ctx.fillStyle=PAL.red;    ctx.beginPath(); ctx.arc(cx, cy-4, 3, 0, 7); ctx.fill();    // ball knob
   ctx.fillStyle=PAL.redHi;  ctx.fillRect(cx-1, cy-5, 1, 1);
 }
+// Little shop-bag glyph (SHOP), centred on (cx,cy).
+function drawShopIcon(ctx, cx, cy, col){
+  cx=Math.round(cx); cy=Math.round(cy);
+  ctx.strokeStyle=col; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx, cy-2, 3, Math.PI, 0); ctx.stroke();  // handle
+  ctx.fillStyle=col;        ctx.fillRect(cx-6, cy-2, 12, 9);      // bag body
+  ctx.fillStyle=PAL.blackD; ctx.fillRect(cx-4, cy, 8, 1);        // seam
+  ctx.fillStyle=PAL.goldHi; ctx.fillRect(cx-1, cy+3, 2, 2);      // coin
+}
 // Bottom-bar tab: icon + label, gold with a top accent when active, dim otherwise.
 function drawTab(ctx, b, kind, active){
   if(active){ ctx.fillStyle='rgba(255,210,30,0.15)'; ctx.fillRect(b.x, b.y, b.w, b.h);   // highlight
     ctx.fillStyle=PAL.gold; ctx.fillRect(b.x, b.y, b.w, 2); }                            // top accent
-  const col = active ? PAL.gold : PAL.wallHi, label = kind==='story' ? 'STORY' : 'ARCADE';
-  const lw = textWidth(label, 1), groupW = 16 + 5 + lw;
+  const col = active ? PAL.gold : PAL.wallHi;
+  const label = kind==='story' ? 'STORY' : kind==='arcade' ? 'ARCADE' : 'SHOP';
+  const lw = textWidth(label, 1), groupW = 14 + 4 + lw;
   const gx = Math.round(b.x + (b.w - groupW)/2), icy = Math.round(b.y + b.h/2);
   ctx.save(); ctx.globalAlpha = active ? 1 : 0.5;
-  if(kind==='story') drawScrollIcon(ctx, gx+8, icy, col); else drawJoystickIcon(ctx, gx+8, icy, col);
-  drawText(ctx, label, gx+16+5, icy-3, col, 1);
+  if(kind==='story') drawScrollIcon(ctx, gx+7, icy, col);
+  else if(kind==='arcade') drawJoystickIcon(ctx, gx+7, icy, col);
+  else drawShopIcon(ctx, gx+7, icy, col);
+  drawText(ctx, label, gx+14+4, icy-3, col, 1);
   ctx.restore();
 }
 
@@ -112,6 +123,7 @@ function drawWallet(ctx, x, y, gold, right){
 // and lets you buy a SHIELD power-up before starting. Returns the clickable rects.
 export function renderPrelevel(ctx, VW, VH, t, data){
   const gold=(data&&data.gold)||0, shields=(data&&data.shields)||0, cost=(data&&data.cost)||50, lvl=((data&&data.level)||0)+1;
+  const dur=Math.round((data&&data.dur)||4);
   starfield(ctx, VW, VH, t);
   drawTextCentered(ctx, 'LEVEL '+lvl, VW/2, 22, PAL.gold, 3);
   drawWallet(ctx, VW/2-16, 54, gold, false);
@@ -119,10 +131,10 @@ export function renderPrelevel(ctx, VW, VH, t, data){
   // SHIELD item card
   const card = { x:24, y:96, w:VW-48, h:78 };
   frame(ctx, card.x, card.y, card.w, card.h);
-  drawShieldBig(ctx, card.x+26, card.y+34);
-  drawText(ctx, 'SHIELD', card.x+48, card.y+16, PAL.goldHi, 1);
-  drawText(ctx, 'OWNED x'+shields, card.x+48, card.y+30, PAL.wallEdge, 1);
-  drawText(ctx, 'PROTECTS ~4S', card.x+48, card.y+44, PAL.wallEdge, 1);
+  drawShield(ctx, card.x+26, card.y+38, 13);
+  drawText(ctx, 'SHIELD', card.x+50, card.y+16, PAL.goldHi, 1);
+  drawText(ctx, 'OWNED x'+shields, card.x+50, card.y+30, PAL.wallEdge, 1);
+  drawText(ctx, 'PROTECTS ~'+dur+'S', card.x+50, card.y+44, PAL.wallEdge, 1);
   const canBuy = gold>=cost;
   const buy = { id:'buyShield', x:card.x+card.w-64, y:card.y+card.h-26, w:56, h:18 };
   ctx.globalAlpha = canBuy?1:0.4; frameBtn(ctx, buy, 'BUY '+cost, 1); ctx.globalAlpha=1;
@@ -135,11 +147,22 @@ export function renderPrelevel(ctx, VW, VH, t, data){
   frameBtn(ctx, back, 'BACK', 1);
   return [buy, play, back];
 }
-// Bigger shield emblem for the shop card, centred on (cx,cy).
-function drawShieldBig(ctx, cx, cy){
-  ctx.fillStyle=PAL.wallHi;  ctx.fillRect(cx-9,cy-11,18,10); ctx.fillRect(cx-7,cy-1,14,4); ctx.fillRect(cx-4,cy+3,8,3); ctx.fillRect(cx-2,cy+6,4,2);
-  ctx.fillStyle=PAL.lapisL;  ctx.fillRect(cx-6,cy-8,12,7);
-  ctx.fillStyle=PAL.goldHi;  ctx.fillRect(cx-1,cy-6,2,8);   ctx.fillRect(cx-4,cy-3,8,2);   // gold cross
+// Heraldic shield emblem, centred on (cx,cy); s = half-width. Metallic gold rim,
+// dark-crimson field, a bright gold star crest, and a top sheen. Reused by the
+// shop and the pre-level card.
+function drawShield(ctx, cx, cy, s){
+  const path=(inset)=>{ const w=s-inset, top=cy-s*1.05+inset*0.7, bot=cy+s*1.2-inset*0.5, shoulder=top+(bot-top)*0.44;
+    ctx.beginPath(); ctx.moveTo(cx-w, top); ctx.lineTo(cx+w, top); ctx.lineTo(cx+w, shoulder);
+    ctx.quadraticCurveTo(cx+w, bot-(bot-shoulder)*0.15, cx, bot);
+    ctx.quadraticCurveTo(cx-w, bot-(bot-shoulder)*0.15, cx-w, shoulder); ctx.closePath(); };
+  path(0);   ctx.fillStyle=PAL.goldHi; ctx.fill();          // outer rim (bright)
+  path(1);   ctx.fillStyle=PAL.gold;   ctx.fill();          // gold band
+  path(2.5); ctx.fillStyle=PAL.goldD;  ctx.fill();          // inner bevel (shadow)
+  path(3.5); ctx.fillStyle=PAL.wallD;  ctx.fill();          // crimson field
+  // top sheen
+  ctx.save(); path(3.5); ctx.clip();
+  ctx.globalAlpha=0.5; ctx.fillStyle=PAL.wall; ctx.fillRect(cx-s, cy-s*1.05, s*2, s*0.7); ctx.globalAlpha=1; ctx.restore();
+  starFilled(ctx, cx, cy-s*0.05, s*0.52, PAL.goldHi);       // gold star crest
 }
 
 // Combined mode screen: STORY (level grid, the default) and ARCADE (flying hero
@@ -175,7 +198,7 @@ export function renderPlayModes(ctx, VW, VH, t, data){
       if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
       else drawLock(ctx, x+CW/2, y+Math.round(CH/2));                // locked: centred padlock, no number
     }
-  } else {
+  } else if(tab === 'arcade'){
     // ARCADE: a hero flying up through the dark + a centred START button.
     for(let i=0;i<28;i++){ const sx=(i*71)%VW, base=(i*53)%VH, sp=60+((i*29)%80), sy=(base+t*sp)%VH, len=4+((i*7)%8);
       ctx.globalAlpha=0.3+0.4*((i%4)/4); ctx.fillStyle=(i%5===0)?PAL.gold:PAL.wallHi; ctx.fillRect(sx,sy,1,len); }
@@ -190,20 +213,41 @@ export function renderPlayModes(ctx, VW, VH, t, data){
     const b = { id:'arcadeStart', x:VW/2-50, y:184, w:100, h:32 };
     frameBtn(ctx, b, 'START', 2);
     btns.push(b);
+  } else {
+    // SHOP: buy the SHIELD booster (consumable) + upgrade its duration, spending gold.
+    drawTextCentered(ctx, 'SHOP', VW/2, 16, PAL.gold, 3);
+    const sh=(data&&data.shop)||{}, gold=(data&&data.gold)||0;
+    // booster card
+    const c1={ x:16, y:52, w:VW-32, h:74 };
+    frame(ctx, c1.x, c1.y, c1.w, c1.h);
+    drawShield(ctx, c1.x+28, c1.y+40, 15);
+    drawText(ctx, 'SHIELD', c1.x+54, c1.y+14, PAL.goldHi, 1);
+    drawText(ctx, 'BOOSTER  x'+(sh.shields||0), c1.x+54, c1.y+28, PAL.wallEdge, 1);
+    drawText(ctx, 'INVULN  ~'+Math.round(sh.dur||4)+'S', c1.x+54, c1.y+42, PAL.wallEdge, 1);
+    const bcost=sh.shieldCost||50, buy={ id:'buyShield', x:c1.x+c1.w-68, y:c1.y+c1.h-24, w:60, h:18 };
+    ctx.globalAlpha=gold>=bcost?1:0.4; frameBtn(ctx, buy, 'BUY '+bcost, 1); ctx.globalAlpha=1; btns.push(buy);
+    // upgrade card
+    const lvl=sh.shieldLvl||0, max=sh.maxLvl||3, c2={ x:16, y:136, w:VW-32, h:74 };
+    frame(ctx, c2.x, c2.y, c2.w, c2.h);
+    drawText(ctx, 'UPGRADE', c2.x+14, c2.y+14, PAL.goldHi, 1);
+    drawText(ctx, 'SHIELD TIME  ~'+Math.round(sh.dur||4)+'S', c2.x+14, c2.y+30, PAL.wallEdge, 1);
+    for(let i=0;i<max;i++){ ctx.fillStyle=i<lvl?PAL.gold:PAL.wallD; ctx.fillRect(c2.x+14+i*10, c2.y+42, 7, 5); }  // level pips
+    const maxed=lvl>=max, up={ id:'upgradeShield', x:c2.x+c2.w-68, y:c2.y+c2.h-24, w:60, h:18 };
+    if(maxed) drawTextCentered(ctx, 'MAX', up.x+up.w/2, up.y+6, PAL.fugu, 1);
+    else { const uc=sh.upCost||0; ctx.globalAlpha=gold>=uc?1:0.4; frameBtn(ctx, up, 'UP '+uc, 1); ctx.globalAlpha=1; btns.push(up); }
   }
 
-  // bottom bar — a raised panel split into two clickable tabs
+  // bottom bar — a raised panel split into three clickable tabs
   const bx = 6, bw = VW-12;
   ctx.fillStyle = 'rgba(26,6,6,0.92)'; ctx.fillRect(bx, barTop, bw, barH);   // panel
   ctx.fillStyle = PAL.wallEdge; ctx.fillRect(bx, barTop, bw, 1);             // bright top edge
   ctx.fillStyle = PAL.wallD;    ctx.fillRect(bx, barTop+barH-1, bw, 1);      // bottom shade
-  const tw = Math.floor(bw/2);
-  const tStory = { id:'tabStory',  x:bx,    y:barTop, w:tw,    h:barH };
-  const tArc   = { id:'tabArcade', x:bx+tw, y:barTop, w:bw-tw, h:barH };
-  drawTab(ctx, tStory, 'story',  tab==='story');
-  drawTab(ctx, tArc,   'arcade', tab==='arcade');
-  ctx.fillStyle = PAL.wallD; ctx.fillRect(bx+tw, barTop+4, 1, barH-8);       // divider between tabs
-  btns.push(tStory, tArc);
+  const tw = Math.floor(bw/3);
+  const tabs = [ {id:'tabStory',kind:'story'}, {id:'tabArcade',kind:'arcade'}, {id:'tabShop',kind:'shop'} ];
+  tabs.forEach((tb,i)=>{ const w=(i===2)?bw-2*tw:tw, r={ id:tb.id, x:bx+i*tw, y:barTop, w, h:barH };
+    drawTab(ctx, r, tb.kind, tab===tb.kind);
+    if(i>0){ ctx.fillStyle=PAL.wallD; ctx.fillRect(bx+i*tw, barTop+4, 1, barH-8); }   // divider
+    btns.push(r); });
 
   // back (top-left gold chevron)
   const back = { id:'menu', x:6, y:6, w:20, h:16 };
@@ -268,9 +312,12 @@ export function renderDebug(ctx, VW, VH, t, data){
   // status indicator dot
   ctx.fillStyle = on ? PAL.fugu : PAL.wallD;
   ctx.beginPath(); ctx.arc(god.x+god.w-14, god.y+god.h/2, 4, 0, 7); ctx.fill();
+  // +10000 gold
+  const give = { id:'giveGold', x:24, y:122, w:VW-48, h:34 };
+  frameBtn(ctx, give, '+10000 GOLD', 2);
   const back = { id:'settings', x:VW/2-32, y:250, w:64, h:18 };   // -> settings menu
   frameBtn(ctx, back, 'BACK', 1);
-  return [god, back];
+  return [god, give, back];
 }
 
 function outcome(ctx, VW, VH, t, spr, glowCol, title, titleCol, data){
