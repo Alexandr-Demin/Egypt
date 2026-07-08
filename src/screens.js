@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707i';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707j';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -114,34 +114,41 @@ export function renderModes(ctx, VW, VH, t, data){
   return [story, arc, back];
 }
 
-// Level-select: a 2×5 grid of big cards, each with its number and three hollow
-// stars. The first `unlocked` cards are selectable (return button rects); the
-// rest are drawn semi-transparent and are not tappable.
+// Level-select: an adaptive grid of cards, each with its number and three hollow
+// stars. 2 columns up to 10 levels, 3 columns beyond (fits more on the small
+// screen). The first `unlocked` cards are selectable; the rest show a padlock.
 export function renderSelect(ctx, VW, VH, t, data){
   const unlocked = (data && data.unlocked) || 0;
-  const TOTAL = 10, COLS = 2, GAP = 8, MX = 14, TOP = 34, PITCH = 47, CH = 40;
-  const CW = Math.floor((VW - MX*2 - GAP) / COLS);
+  const total = (data && data.total) || 10;
+  const COLS = total > 10 ? 3 : 2;
+  const rows = Math.ceil(total / COLS);
+  const MX = 12, GAP = 6, TOP = 30, BOT = 258;                     // grid region; BACK sits below
+  const CW = Math.floor((VW - MX*2 - GAP*(COLS-1)) / COLS);
+  const PITCH = Math.min(47, Math.floor((BOT - TOP) / rows));
+  const CH = Math.min(40, PITCH - 6);
+  const big = CW >= 70;                                            // 2-col cards fit the big number/stars
+  const numScale = big ? 3 : 2, starR = big ? 5 : 4, starGap = big ? 13 : 9;
   starfield(ctx, VW, VH, t);
   frame(ctx, 6, 6, VW-12, VH-12);
   drawTextCentered(ctx, 'LEVELS', VW/2, 14, PAL.gold, 2);
   const btns = [];
-  for(let i=0;i<TOTAL;i++){
+  for(let i=0;i<total;i++){
     const col = i % COLS, row = (i / COLS) | 0;
     const x = MX + col*(CW+GAP), y = TOP + row*PITCH;
     const avail = i < unlocked;
     ctx.save();
     ctx.globalAlpha = avail ? 1 : 0.3;
     frame(ctx, x, y, CW, CH);
-    drawTextCentered(ctx, String(i+1), x+CW/2, y+5, avail?PAL.gold:PAL.wallHi, 3);
-    const scx = x+CW/2, sy = y+CH-9, earned = (data && data.stars && data.stars[i]) || 0;
-    if(avail) for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*13;     // stars only on open cards
-      if(s<earned) starFilled(ctx, sx2, sy, 5, PAL.gold);
-      else starOutline(ctx, sx2, sy, 5, PAL.goldHi); }
+    drawTextCentered(ctx, String(i+1), x+CW/2, y+4, avail?PAL.gold:PAL.wallHi, numScale);
+    const scx = x+CW/2, sy = y+CH-8, earned = (data && data.stars && data.stars[i]) || 0;
+    if(avail) for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*starGap;   // stars only on open cards
+      if(s<earned) starFilled(ctx, sx2, sy, starR, PAL.gold);
+      else starOutline(ctx, sx2, sy, starR, PAL.goldHi); }
     ctx.restore();
     if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
-    else drawLock(ctx, x+CW/2, y+CH-10);                            // locked: padlock instead of stars
+    else drawLock(ctx, x+CW/2, y+CH-9);                             // locked: padlock instead of stars
   }
-  const back = { id:'menu', x:VW/2-30, y:266, w:60, h:13 };
+  const back = { id:'menu', x:VW/2-30, y:270, w:60, h:13 };
   frameBtn(ctx, back, 'BACK', 1);
   btns.push(back);
   return btns;

@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707i';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707i';
-import { renderTitle, renderMenu, renderModes, renderDebug, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707i';
-import { getState, patch, reset } from './state.js?v=20260707i';
-import * as sound from './sound.js?v=20260707i';
-import { generateLevel } from './levelgen.js?v=20260707i';
+import { LEVELS } from './levels.js?v=20260707j';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707j';
+import { renderTitle, renderMenu, renderModes, renderDebug, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707j';
+import { getState, patch, reset } from './state.js?v=20260707j';
+import * as sound from './sound.js?v=20260707j';
+import { generateLevel } from './levelgen.js?v=20260707j';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -554,7 +554,7 @@ function render(){
 
   if(G.scene==='title'){ G.buttons=renderTitle(ctx,VW,VH,G.t,{best:getState()?.progress?.best||0, arcadeBest:getState()?.progress?.arcadeBest||0}); }
   else if(G.scene==='modes'){ G.buttons=renderModes(ctx,VW,VH,G.t,{arcadeBest:getState()?.progress?.arcadeBest||0}); }
-  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:unlockedCount(), stars:getState()?.progress?.stars||{}}); }
+  else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:unlockedCount(), total:LEVELS.length, stars:getState()?.progress?.stars||{}}); }
   else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
   else if(G.scene==='debug'){ G.buttons=renderDebug(ctx,VW,VH,G.t,{god:G.godMode}); }
