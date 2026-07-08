@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707o';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707p';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -109,25 +109,28 @@ export function renderPlayModes(ctx, VW, VH, t, data){
   const btns = [];
 
   if(tab === 'story'){
-    drawTextCentered(ctx, 'LEVELS', VW/2, 12, PAL.gold, 2);
+    drawTextCentered(ctx, 'LEVELS', VW/2, 16, PAL.gold, 3);          // bigger, with room below
     const unlocked = (data && data.unlocked) || 0, total = (data && data.total) || 10;
     const COLS = total > 10 ? 3 : 2, rows = Math.ceil(total / COLS);
-    const MX = 12, GAP = 6, TOP = 28;
+    const MX = 14, GAP = 6, TOP = 44;                                // more space under the title
     const CW = Math.floor((VW - MX*2 - GAP*(COLS-1)) / COLS);
-    const PITCH = Math.min(46, Math.floor((contentBot - TOP) / rows));
-    const CH = Math.min(40, PITCH - 5);
+    const gridW = COLS*CW + (COLS-1)*GAP, startX = Math.round((VW - gridW)/2);   // centred grid
+    const PITCH = Math.min(44, Math.floor((contentBot - TOP) / rows));
+    const CH = Math.min(38, PITCH - 5);
     const big = CW >= 70, numScale = big ? 3 : 2, starR = big ? 5 : 4, starGap = big ? 13 : 9;
     for(let i=0;i<total;i++){
-      const col = i % COLS, row = (i / COLS) | 0, x = MX + col*(CW+GAP), y = TOP + row*PITCH, avail = i < unlocked;
+      const col = i % COLS, row = (i / COLS) | 0, x = startX + col*(CW+GAP), y = TOP + row*PITCH, avail = i < unlocked;
       ctx.save(); ctx.globalAlpha = avail ? 1 : 0.3;
       frame(ctx, x, y, CW, CH);
-      drawTextCentered(ctx, String(i+1), x+CW/2, y+3, avail?PAL.gold:PAL.wallHi, numScale);
-      const scx = x+CW/2, sy = y+CH-8, earned = (data && data.stars && data.stars[i]) || 0;
-      if(avail) for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*starGap;
-        if(s<earned) starFilled(ctx, sx2, sy, starR, PAL.gold); else starOutline(ctx, sx2, sy, starR, PAL.goldHi); }
+      if(avail){                                                     // open: number on top + earned stars
+        drawTextCentered(ctx, String(i+1), x+CW/2, y+3, PAL.gold, numScale);
+        const scx = x+CW/2, sy = y+CH-8, earned = (data && data.stars && data.stars[i]) || 0;
+        for(let s=0;s<3;s++){ const sx2 = scx + (s-1)*starGap;
+          if(s<earned) starFilled(ctx, sx2, sy, starR, PAL.gold); else starOutline(ctx, sx2, sy, starR, PAL.goldHi); }
+      }
       ctx.restore();
       if(avail) btns.push({ id:'lvl'+i, x, y, w:CW, h:CH });
-      else drawLock(ctx, x+CW/2, y+CH-9);
+      else drawLock(ctx, x+CW/2, y+Math.round(CH/2));                // locked: centred padlock, no number
     }
   } else {
     // ARCADE: a hero flying up through the dark + a centred START button.
