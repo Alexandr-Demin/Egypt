@@ -40,6 +40,16 @@
     font-size:12px; padding:8px; resize:vertical; }
   .hint{ font-size:11px; color:var(--muted); line-height:1.5; }
   .verdict{ font-size:14px; font-weight:800; letter-spacing:.04em; padding:6px 0; }
+  .play-btn{ background:var(--gold); color:#1a0a0a; font-weight:800; letter-spacing:.06em; flex:1; }
+  .play-btn:hover{ filter:brightness(1.08); }
+  /* playtest overlay: the real game in an iframe */
+  .play-modal{ position:fixed; inset:0; background:rgba(6,2,3,0.92); z-index:100;
+    display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
+  .play-modal.on{ display:flex; }
+  .play-modal iframe{ width:300px; height:415px; border:1px solid var(--line);
+    border-radius:12px; background:#000; box-shadow:0 0 40px rgba(255,64,48,0.25); }
+  .play-bar{ display:flex; gap:10px; }
+  .play-title{ color:var(--gold); font-weight:800; letter-spacing:.2em; font-size:13px; }
 </style>
 </head>
 <body>
@@ -76,6 +86,9 @@
         <label><input type="checkbox" id="showTraps" checked> ловушки</label>
         <button id="playPath">▶ Показать путь</button>
       </div>
+      <div class="row">
+        <button id="play" class="play-btn">▶ Играть уровень</button>
+      </div>
     </div>
   </div>
 
@@ -103,6 +116,17 @@
       <div class="hint">Экспорт даёт готовый <code>const … = [ … ]</code> и строку для массива <code>LEVELS</code> в src/levels.js.</div>
     </div>
   </div>
+</div>
+
+<!-- playtest overlay: launches the drawn level in the real game -->
+<div class="play-modal" id="playModal">
+  <div class="play-title">ТЕСТ УРОВНЯ</div>
+  <iframe id="playFrame" title="playtest"></iframe>
+  <div class="play-bar">
+    <button id="playRestart">⟲ Рестарт</button>
+    <button id="playClose">✕ Закрыть</button>
+  </div>
+  <div class="hint">Свайп / стрелки — движение · играется настоящий движок игры</div>
 </div>
 
 <script type="module">
@@ -387,6 +411,31 @@ $('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].ma
   const w=Math.max(...m.map(r=>r.length)); anim=null;
   grid=m.map(r=>(r+'#'.repeat(w)).slice(0,w).split('')); H=grid.length; W=w;
   $('w').value=W; $('h').value=H; render(); save(); };
+
+// ---------- запуск уровня в настоящей игре (iframe + dbg.testMap) ----------
+const modal=$('playModal'), frame=$('playFrame');
+let playPoll=null;
+function loadIntoGame(){                       // push the drawn map into the running game
+  try{ const w=frame.contentWindow;
+    if(w && w.dbg && typeof w.dbg.testMap==='function'){ w.dbg.testMap(rows(), 'PLAYTEST'); return true; } }
+  catch(e){}                                   // cross-origin only during initial load
+  return false;
+}
+function startPlay(){
+  const v=validateLevel(rows());
+  if(!v.hasP || !v.hasE){ alert('Для запуска нужны старт (P) и выход (E).'); return; }
+  if(!v.widthsOk){ alert('Строки уровня разной ширины — выровняйте перед запуском.'); return; }
+  modal.classList.add('on');
+  frame.src='../index.html?editor=1&_cb='+Date.now();   // fresh game boot every time
+  clearInterval(playPoll);
+  playPoll=setInterval(()=>{ if(loadIntoGame()) clearInterval(playPoll); }, 120);  // wait for dbg, then load
+}
+function stopPlay(){ clearInterval(playPoll); modal.classList.remove('on'); frame.src='about:blank'; }
+$('play').onclick = startPlay;
+$('playClose').onclick = stopPlay;
+$('playRestart').onclick = ()=>{ if(!loadIntoGame()){ frame.src='../index.html?editor=1&_cb='+Date.now();
+  clearInterval(playPoll); playPoll=setInterval(()=>{ if(loadIntoGame()) clearInterval(playPoll); },120); } };
+addEventListener('keydown', e=>{ if(e.key==='Escape' && modal.classList.contains('on')) stopPlay(); });
 
 // ---------- сохранение черновика (отдельный ключ; сейв игры не трогаем) ----------
 const KEY='sandslide.editor.wip';
