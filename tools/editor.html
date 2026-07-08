@@ -49,6 +49,7 @@
   .play-modal iframe{ width:300px; height:415px; border:1px solid var(--line);
     border-radius:12px; background:#000; box-shadow:0 0 40px rgba(255,64,48,0.25); }
   .play-bar{ display:flex; gap:10px; }
+  #playGod.on{ background:var(--green); color:#0a1a0a; border-color:var(--green); font-weight:800; }
   .play-title{ color:var(--gold); font-weight:800; letter-spacing:.2em; font-size:13px; }
 </style>
 </head>
@@ -123,6 +124,7 @@
   <div class="play-title">ТЕСТ УРОВНЯ</div>
   <iframe id="playFrame" title="playtest"></iframe>
   <div class="play-bar">
+    <button id="playGod">БЕССМЕРТИЕ: ВЫКЛ</button>
     <button id="playRestart">⟲ Рестарт</button>
     <button id="playClose">✕ Закрыть</button>
   </div>
@@ -414,13 +416,19 @@ $('import').onclick = ()=>{ const m=[...$('io').value.matchAll(/'([^']*)'/g)].ma
 
 // ---------- запуск уровня в настоящей игре (iframe + dbg.testMap) ----------
 const modal=$('playModal'), frame=$('playFrame');
-let playPoll=null;
+let playPoll=null, godWanted=false;
+function syncGod(w){                            // make the iframe game's god mode match the toggle
+  try{ w=w||frame.contentWindow;
+    if(w && w.dbg && typeof w.dbg.god==='function' && typeof w.dbg.tap==='function'){
+      if(w.dbg.god()!==godWanted) w.dbg.tap('god'); } }catch(e){}
+}
 function loadIntoGame(){                       // push the drawn map into the running game
   try{ const w=frame.contentWindow;
-    if(w && w.dbg && typeof w.dbg.testMap==='function'){ w.dbg.testMap(rows(), 'PLAYTEST'); return true; } }
+    if(w && w.dbg && typeof w.dbg.testMap==='function'){ w.dbg.testMap(rows(), 'PLAYTEST'); syncGod(w); return true; } }
   catch(e){}                                   // cross-origin only during initial load
   return false;
 }
+function updateGodBtn(){ const b=$('playGod'); b.textContent='БЕССМЕРТИЕ: '+(godWanted?'ВКЛ':'ВЫКЛ'); b.classList.toggle('on', godWanted); }
 function startPlay(){
   const v=validateLevel(rows());
   if(!v.hasP || !v.hasE){ alert('Для запуска нужны старт (P) и выход (E).'); return; }
@@ -435,6 +443,8 @@ $('play').onclick = startPlay;
 $('playClose').onclick = stopPlay;
 $('playRestart').onclick = ()=>{ if(!loadIntoGame()){ frame.src='../index.html?editor=1&_cb='+Date.now();
   clearInterval(playPoll); playPoll=setInterval(()=>{ if(loadIntoGame()) clearInterval(playPoll); },120); } };
+$('playGod').onclick = ()=>{ godWanted=!godWanted; updateGodBtn(); syncGod(); };   // toggle immortality live
+updateGodBtn();
 addEventListener('keydown', e=>{ if(e.key==='Escape' && modal.classList.contains('on')) stopPlay(); });
 
 // ---------- сохранение черновика (отдельный ключ; сейв игры не трогаем) ----------
