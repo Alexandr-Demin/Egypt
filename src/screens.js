@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707k';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707l';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -95,9 +95,7 @@ function drawCabinet(ctx, cx, cy){
 
 // Mode-select: two big pixel icons — STORY (scroll) and ARCADE (cabinet).
 export function renderModes(ctx, VW, VH, t, data){
-  starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);
-  drawTextCentered(ctx, 'MODE', VW/2, 30, PAL.gold, 3);
+  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'MODE', VW/2, 30, PAL.gold, 3);
   const CW=82, CH=100, GAP=12, y=86;
   const story = { id:'story',  x:Math.round(VW/2-CW-GAP/2), y, w:CW, h:CH };
   const arc   = { id:'arcade', x:Math.round(VW/2+GAP/2),    y, w:CW, h:CH };
@@ -128,9 +126,7 @@ export function renderSelect(ctx, VW, VH, t, data){
   const CH = Math.min(40, PITCH - 6);
   const big = CW >= 70;                                            // 2-col cards fit the big number/stars
   const numScale = big ? 3 : 2, starR = big ? 5 : 4, starGap = big ? 13 : 9;
-  starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);
-  drawTextCentered(ctx, 'LEVELS', VW/2, 14, PAL.gold, 2);
+  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'LEVELS', VW/2, 14, PAL.gold, 2);
   const btns = [];
   for(let i=0;i<total;i++){
     const col = i % COLS, row = (i / COLS) | 0;
@@ -156,7 +152,6 @@ export function renderSelect(ctx, VW, VH, t, data){
 
 export function renderTitle(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);                 // screen border contour
   // title
   drawTextCentered(ctx, 'SANDSLIDE', VW/2, 46, PAL.blackD, 3);          // shadow
   drawTextCentered(ctx, 'SANDSLIDE', VW/2, 44, PAL.gold, 3);
@@ -177,9 +172,7 @@ export function renderTitle(ctx, VW, VH, t, data){
 }
 
 export function renderMenu(ctx, VW, VH, t, data){
-  starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);
-  drawTextCentered(ctx, 'MENU', VW/2, 26, PAL.gold, 3);
+  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'MENU', VW/2, 26, PAL.gold, 3);
   const b1 = { id:'play',  x:30, y:60,  w:VW-60, h:30 };
   const b2 = { id:'sound', x:30, y:98,  w:VW-60, h:30 };
   const b3 = { id:'reset', x:30, y:136, w:VW-60, h:30 };
@@ -198,9 +191,7 @@ export function renderMenu(ctx, VW, VH, t, data){
 // Developer menu — dev-only toggles (opened from the settings menu). Extensible:
 // each tool is a labelled toggle button. First tool: GOD MODE (immortality).
 export function renderDebug(ctx, VW, VH, t, data){
-  starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);
-  drawTextCentered(ctx, 'DEBUG', VW/2, 26, PAL.gold, 3);
+  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'DEBUG', VW/2, 26, PAL.gold, 3);
   drawTextCentered(ctx, 'DEVELOPER TOOLS', VW/2, 48, PAL.wallEdge, 1);
   const god = { id:'god', x:24, y:76, w:VW-48, h:34 };
   const on = !!(data && data.god);
@@ -215,9 +206,7 @@ export function renderDebug(ctx, VW, VH, t, data){
 }
 
 function outcome(ctx, VW, VH, t, spr, glowCol, title, titleCol, data){
-  starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);
-  // glow + emblem
+  starfield(ctx, VW, VH, t);  // glow + emblem
   ctx.globalAlpha = 0.14 + 0.05*Math.sin(t*2); ctx.fillStyle = glowCol;
   ctx.beginPath(); ctx.arc(VW/2, 92, 44, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = false; ctx.drawImage(sprite(spr), VW/2-24, 68, 48, 48);
@@ -249,9 +238,7 @@ export function renderGameover(ctx, VW, VH, t, data){
 // collected percentage; CONTINUE advances. `r.t` is the animation clock (s).
 export function renderResult(ctx, VW, VH, t, r){
   const rt = r ? r.t : 0, stars = r ? r.stars : 0, pct = r ? r.pct : 0;
-  starfield(ctx, VW, VH, t);
-  frame(ctx, 6, 6, VW-12, VH-12);
-  drawTextCentered(ctx, 'CLEARED', VW/2, 34, PAL.gold, 3);
+  starfield(ctx, VW, VH, t);  drawTextCentered(ctx, 'CLEARED', VW/2, 34, PAL.gold, 3);
   if(r && r.name) drawTextCentered(ctx, r.name, VW/2, 66, PAL.goldHi, 1);
   // three stars: earned ones fly in (scale-pop) at staggered times
   for(let k=0;k<3;k++){
