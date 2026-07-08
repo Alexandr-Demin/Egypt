@@ -2,7 +2,7 @@
 // Each render fn draws into the virtual ctx and returns the clickable button
 // rects (virtual coords) so game.js can hit-test taps.
 
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707h';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707i';
 
 // twinkling starfield on the dark "Curse" void — shared backdrop for the screens
 function starfield(ctx, VW, VH, t){
@@ -172,18 +172,39 @@ export function renderTitle(ctx, VW, VH, t, data){
 export function renderMenu(ctx, VW, VH, t, data){
   starfield(ctx, VW, VH, t);
   frame(ctx, 6, 6, VW-12, VH-12);
-  drawTextCentered(ctx, 'MENU', VW/2, 30, PAL.gold, 3);
-  const b1 = { id:'play',  x:30, y:86,  w:VW-60, h:30 };
-  const b2 = { id:'sound', x:30, y:132, w:VW-60, h:30 };
-  const b3 = { id:'reset', x:30, y:178, w:VW-60, h:30 };
+  drawTextCentered(ctx, 'MENU', VW/2, 26, PAL.gold, 3);
+  const b1 = { id:'play',  x:30, y:60,  w:VW-60, h:30 };
+  const b2 = { id:'sound', x:30, y:98,  w:VW-60, h:30 };
+  const b3 = { id:'reset', x:30, y:136, w:VW-60, h:30 };
+  const b4 = { id:'debug', x:30, y:174, w:VW-60, h:30 };
   frameBtn(ctx, b1, 'PLAY', 2);
   frameBtn(ctx, b2, 'SOUND  ' + (data && data.soundOn ? 'ON' : 'OFF'), 2);
   frameBtn(ctx, b3, 'RESET', 2);
-  const back = { id:'menu', x:VW/2-32, y:224, w:64, h:18 };
+  frameBtn(ctx, b4, 'DEBUG', 2);
+  const back = { id:'menu', x:VW/2-32, y:214, w:64, h:18 };
   frameBtn(ctx, back, 'BACK', 1);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(sprite('anubis'), VW/2-8, 250, 16, 16);
-  return [b1, b2, b3, back];
+  ctx.drawImage(sprite('anubis'), VW/2-8, 246, 16, 16);
+  return [b1, b2, b3, b4, back];
+}
+
+// Developer menu — dev-only toggles (opened from the settings menu). Extensible:
+// each tool is a labelled toggle button. First tool: GOD MODE (immortality).
+export function renderDebug(ctx, VW, VH, t, data){
+  starfield(ctx, VW, VH, t);
+  frame(ctx, 6, 6, VW-12, VH-12);
+  drawTextCentered(ctx, 'DEBUG', VW/2, 26, PAL.gold, 3);
+  drawTextCentered(ctx, 'DEVELOPER TOOLS', VW/2, 48, PAL.wallEdge, 1);
+  const god = { id:'god', x:24, y:76, w:VW-48, h:34 };
+  const on = !!(data && data.god);
+  frame(ctx, god.x, god.y, god.w, god.h);
+  drawTextCentered(ctx, 'GOD MODE  ' + (on ? 'ON' : 'OFF'), god.x+god.w/2, god.y+(god.h-14)/2, on ? PAL.fugu : PAL.gold, 2);
+  // status indicator dot
+  ctx.fillStyle = on ? PAL.fugu : PAL.wallD;
+  ctx.beginPath(); ctx.arc(god.x+god.w-14, god.y+god.h/2, 4, 0, 7); ctx.fill();
+  const back = { id:'settings', x:VW/2-32, y:250, w:64, h:18 };   // -> settings menu
+  frameBtn(ctx, back, 'BACK', 1);
+  return [god, back];
 }
 
 function outcome(ctx, VW, VH, t, spr, glowCol, title, titleCol, data){

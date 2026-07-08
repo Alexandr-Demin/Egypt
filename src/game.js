@@ -2,12 +2,12 @@
 // Slide-maze on a tile grid + juice. Renders to a fixed virtual screen that the
 // browser upscales (pixelated). Scenes: title → select → play → win/gameover.
 
-import { LEVELS } from './levels.js?v=20260707h';
-import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707h';
-import { renderTitle, renderMenu, renderModes, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707h';
-import { getState, patch, reset } from './state.js?v=20260707h';
-import * as sound from './sound.js?v=20260707h';
-import { generateLevel } from './levelgen.js?v=20260707h';
+import { LEVELS } from './levels.js?v=20260707i';
+import { sprite, drawText, drawTextCentered, textWidth, PAL } from './sprites.js?v=20260707i';
+import { renderTitle, renderMenu, renderModes, renderDebug, renderSelect, renderResult, renderWin, renderGameover } from './screens.js?v=20260707i';
+import { getState, patch, reset } from './state.js?v=20260707i';
+import * as sound from './sound.js?v=20260707i';
+import { generateLevel } from './levelgen.js?v=20260707i';
 
 const VW = 208, VH = 288, TILE = 16, HUD_H = 24;
 const SLIDE = 34;   // tiles/sec — fast, snappy slide
@@ -56,6 +56,7 @@ const G = {
   psx:1, psy:1, buttons:[], trans:null, dead:false, deadTimer:0,
   dustTimer:0, confirmExit:false,
   arcade:false, arcadeDepth:0, fill:null, arcadeFly:null,   // arcade run state
+  godMode:false,                                            // debug: immortality
 };
 
 // ---------------- lifecycle ----------------
@@ -81,6 +82,7 @@ export function startGame(canvas){
       fillSpeed:G.fill?G.fill.speed:null, fly:!!G.arcadeFly, score:G.score, name:G.levelName,
       intro:G.intro, hasStartCell:!!G.startCell, heroAngle:G.heroAngle}),
     win:()=>{ if(G.scene==='play' && G.player && !G.dead) exitReached(); },   // QA: trigger exit/fly
+    god:()=>G.godMode, kill:()=>{ if(G.scene==='play' && G.player) die(); },   // QA: god state / force death
   };
 }
 
@@ -337,6 +339,8 @@ function onButton(id){
   else if(id==='settings') transition(()=>{ G.scene='menu'; });
   else if(id==='sound') sound.setEnabled(!sound.isEnabled());          // toggle, stay on menu
   else if(id==='reset'){ reset(); G.flash=0.4; G.flashCol=PAL.goldHi; } // wipe progress + flash
+  else if(id==='debug') transition(()=>{ G.scene='debug'; });          // open developer menu
+  else if(id==='god'){ G.godMode=!G.godMode; G.flash=0.2; G.flashCol=G.godMode?PAL.fugu:PAL.wallD; } // toggle immortality
 }
 
 function setDir(d){
@@ -494,6 +498,7 @@ function exitReached(){
 }
 function die(){
   if(G.dead) return;
+  if(G.godMode){ G.flash=Math.max(G.flash,0.08); G.flashCol=PAL.lapisL; return; }   // debug immortality: shrug it off
   G.dead=true; G._won=false; G.player.moving=false;
   G.lives--; G.shake=6; G.flash=0.6; G.flashCol=PAL.red; G.hs=0.12;
   burst(G.player.fx*TILE+8, G.player.fy*TILE+8, 16, PAL.red, 60, 0.7);
@@ -552,6 +557,7 @@ function render(){
   else if(G.scene==='select'){ G.buttons=renderSelect(ctx,VW,VH,G.t,{unlocked:unlockedCount(), stars:getState()?.progress?.stars||{}}); }
   else if(G.scene==='result'){ G.buttons=renderResult(ctx,VW,VH,G.t,G.result); }
   else if(G.scene==='menu'){ G.buttons=renderMenu(ctx,VW,VH,G.t,{soundOn:sound.isEnabled()}); }
+  else if(G.scene==='debug'){ G.buttons=renderDebug(ctx,VW,VH,G.t,{god:G.godMode}); }
   else if(G.scene==='win'){ G.buttons=renderWin(ctx,VW,VH,G.t,{score:G.score,best:getState()?.progress?.best||0}); }
   else if(G.scene==='gameover'){ G.buttons=renderGameover(ctx,VW,VH,G.t,{score:G.score,
     best:(G.arcade?getState()?.progress?.arcadeBest:getState()?.progress?.best)||0,
@@ -971,4 +977,6 @@ function drawHUD(ctx){
   drawTextCentered(ctx, G.levelName, VW/2, 7, PAL.goldHi, 1);
   // score (right)
   const s='GOLD '+G.score; drawText(ctx, s, VW-6-textWidth(s,1), 8, PAL.gold, 1);
+  // debug immortality marker (bottom-left, out of the way)
+  if(G.godMode) drawText(ctx, 'GOD', 4, VH-9, PAL.fugu, 1);
 }
